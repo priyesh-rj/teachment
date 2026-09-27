@@ -1,3 +1,15 @@
+import {
+  DEMO_TEACHER,
+  DEMO_SCHOOL,
+  INITIAL_JOBS,
+  INITIAL_TEACHERS,
+  INITIAL_APPLICATIONS,
+  INITIAL_APPLICANTS,
+  getStoredSession,
+  saveStoredSession,
+  clearStoredSession,
+} from './mockData';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL.replace(/\/+$/, '')}/api`
   : '/api';
@@ -5,12 +17,58 @@ export const UPLOAD_BASE_URL = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace(/\/+$/, '')
   : '';
 
+// In-memory state synchronized with LocalStorage for offline/standalone demo mode
+let localJobs = (() => {
+  try {
+    const raw = localStorage.getItem('teachment_mock_jobs');
+    return raw ? JSON.parse(raw) : INITIAL_JOBS;
+  } catch {
+    return INITIAL_JOBS;
+  }
+})();
+
+let localApplications = (() => {
+  try {
+    const raw = localStorage.getItem('teachment_mock_apps');
+    return raw ? JSON.parse(raw) : INITIAL_APPLICATIONS;
+  } catch {
+    return INITIAL_APPLICATIONS;
+  }
+})();
+
+let localApplicants = (() => {
+  try {
+    const raw = localStorage.getItem('teachment_mock_applicants');
+    return raw ? JSON.parse(raw) : INITIAL_APPLICANTS;
+  } catch {
+    return INITIAL_APPLICANTS;
+  }
+})();
+
+const persistJobs = () => {
+  try {
+    localStorage.setItem('teachment_mock_jobs', JSON.stringify(localJobs));
+  } catch {}
+};
+
+const persistApplications = () => {
+  try {
+    localStorage.setItem('teachment_mock_apps', JSON.stringify(localApplications));
+  } catch {}
+};
+
+const persistApplicants = () => {
+  try {
+    localStorage.setItem('teachment_mock_applicants', JSON.stringify(localApplicants));
+  } catch {}
+};
+
 const getAuthHeaders = () => {
   const token = localStorage.getItem('teachment_token');
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
-// Generic Fetch Wrapper
+// Generic Fetch Wrapper with resilient error detection
 async function request(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
   const headers = {
@@ -22,9 +80,19 @@ async function request(endpoint, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
-  const res = await fetch(url, { ...options, headers });
-  const data = await res.json();
+  let res;
+  try {
+    res = await fetch(url, { ...options, headers });
+  } catch (netErr) {
+    throw new Error('BACKEND_UNREACHABLE: ' + netErr.message);
+  }
 
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new Error('BACKEND_UNREACHABLE: Server returned non-JSON response');
+  }
+
+  const data = await res.json();
   if (!res.ok) {
     throw new Error(data.error || 'Network request failed');
   }
@@ -34,101 +102,382 @@ async function request(endpoint, options = {}) {
 
 export const api = {
   // Auth
-  login: (email, password) =>
-    request('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    }),
+  login: async (email, password) => {
+    try {
+      return await request('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+    } catch (err) {
+      console.warn('Backend unavailable during login, using demo profile fallback:', err.message);
+      const isSchool = email.includes('school') || email.includes('daffodils') || email === 'teachment.tech@gmail.com';
+      const demo = JSON.parse(JSON.stringify(isSchool ? DEMO_SCHOOL : DEMO_TEACHER));
+      saveStoredSession(demo);
+      return demo;
+    }
+  },
 
-  register: (payload) =>
-    request('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
+  register: async (payload) => {
+    try {
+      return await request('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      console.warn('Backend unavailable during register, creating local demo profile:', err.message);
+      const isSchool = payload.role === 'school';
+      const demo = JSON.parse(JSON.stringify(isSchool ? DEMO_SCHOOL : DEMO_TEACHER));
+      demo.user.name = payload.name || demo.user.name;
+      demo.user.email = payload.email || demo.user.email;
+      demo.user.phone = payload.phone || demo.user.phone;
+      demo.user.role = payload.role || demo.user.role;
+      saveStoredSession(demo);
+      return demo;
+    }
+  },
 
-  demoLogin: (role = 'school') =>
-    request('/auth/demo', {
-      method: 'POST',
-      body: JSON.stringify({ role }),
-    }),
+  demoLogin: async (role = 'school') => {
+    try {
+      return await request('/auth/demo', {
+        method: 'POST',
+        body: JSON.stringify({ role }),
+      });
+    } catch (err) {
+      console.warn('Backend unavailable during demoLogin, launching instant client demo mode:', err.message);
+      const isSchool = role === 'school';
+      const demo = JSON.parse(JSON.stringify(isSchool ? DEMO_SCHOOL : DEMO_TEACHER));
+      saveStoredSession(demo);
+      return demo;
+    }
+  },
 
-  getMe: () => request('/auth/me'),
+  getMe: async () => {
+    try {
+      return await request('/auth/me');
+    } catch (err) {
+      const activeSession = getStoredSession();
+      if (activeSession) {
+        return { user: activeSession.user, profile: activeSession.profile };
+      }
+      throw err;
+    }
+  },
 
   // Teacher APIs
-  getTeacherProfile: () => request('/teacher/profile'),
-  updateTeacherProfile: (payload) =>
-    request('/teacher/profile', {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }),
-  uploadTeacherAvatar: (formData) =>
-    request('/teacher/avatar', {
-      method: 'POST',
-      body: formData,
-    }),
-  uploadResume: (formData) =>
-    request('/teacher/resume', {
-      method: 'POST',
-      body: formData,
-    }),
-  getJobs: (params = {}) => {
-    const clean = {};
-    Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== '') {
-        clean[k] = v;
-      }
-    });
-    const query = new URLSearchParams(clean).toString();
-    return request(`/teacher/jobs${query ? `?${query}` : ''}`);
+  getTeacherProfile: async () => {
+    try {
+      return await request('/teacher/profile');
+    } catch (err) {
+      const session = getStoredSession() || DEMO_TEACHER;
+      return { user: session.user, profile: session.profile };
+    }
   },
-  applyJob: (jobId) =>
-    request(`/teacher/apply/${jobId}`, {
-      method: 'POST',
-    }),
-  getAppliedJobs: () => request('/teacher/applied'),
+
+  updateTeacherProfile: async (payload) => {
+    try {
+      return await request('/teacher/profile', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      const session = getStoredSession() || JSON.parse(JSON.stringify(DEMO_TEACHER));
+      session.user = { ...session.user, name: payload.name || session.user.name, phone: payload.phone || session.user.phone, avatar: payload.avatar || session.user.avatar };
+      session.profile = { ...session.profile, ...payload };
+      saveStoredSession(session);
+      return { message: 'Profile updated successfully!', profile: session.profile, user: session.user };
+    }
+  },
+
+  uploadTeacherAvatar: async (formData) => {
+    try {
+      return await request('/teacher/avatar', {
+        method: 'POST',
+        body: formData,
+      });
+    } catch (err) {
+      const session = getStoredSession() || JSON.parse(JSON.stringify(DEMO_TEACHER));
+      const fallbackUrl = 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=400&q=80';
+      session.user.avatar = fallbackUrl;
+      saveStoredSession(session);
+      return { message: 'Avatar updated!', avatarUrl: fallbackUrl };
+    }
+  },
+
+  uploadResume: async (formData) => {
+    try {
+      return await request('/teacher/resume', {
+        method: 'POST',
+        body: formData,
+      });
+    } catch (err) {
+      const session = getStoredSession() || JSON.parse(JSON.stringify(DEMO_TEACHER));
+      session.profile.resume_path = '/uploads/resumes/sample_resume.pdf';
+      session.profile.parsed_skills = 'Classroom Pedagogy, STEM Instruction, Curriculum Planning, Student Assessment';
+      saveStoredSession(session);
+      return {
+        message: 'Resume parsed & updated successfully (Demo Mode)!',
+        parsedData: {
+          skills: ['Pedagogy', 'Calculus', 'Curriculum Planning', 'STEM'],
+          experience_years: session.profile.experience_years || 3,
+          qualifications: session.profile.qualifications,
+        }
+      };
+    }
+  },
+
+  getJobs: async (params = {}) => {
+    try {
+      const clean = {};
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') {
+          clean[k] = v;
+        }
+      });
+      const query = new URLSearchParams(clean).toString();
+      return await request(`/teacher/jobs${query ? `?${query}` : ''}`);
+    } catch (err) {
+      let filtered = [...localJobs];
+
+      if (params.keyword) {
+        const kw = params.keyword.toLowerCase();
+        filtered = filtered.filter(
+          (j) =>
+            (j.title || '').toLowerCase().includes(kw) ||
+            (j.subject || '').toLowerCase().includes(kw) ||
+            (j.city || '').toLowerCase().includes(kw) ||
+            (j.school_name || '').toLowerCase().includes(kw) ||
+            (j.required_skills || '').toLowerCase().includes(kw)
+        );
+      }
+
+      if (params.jobType) {
+        filtered = filtered.filter((j) => (j.job_type || '').toLowerCase() === params.jobType.toLowerCase());
+      }
+
+      if (params.minSalary) {
+        filtered = filtered.filter((j) => Number(j.max_salary) >= Number(params.minSalary));
+      }
+
+      if (params.maxSalary) {
+        filtered = filtered.filter((j) => Number(j.min_salary) <= Number(params.maxSalary));
+      }
+
+      return { jobs: filtered };
+    }
+  },
+
+  applyJob: async (jobId) => {
+    try {
+      return await request(`/teacher/apply/${jobId}`, {
+        method: 'POST',
+      });
+    } catch (err) {
+      const job = localJobs.find((j) => Number(j.id) === Number(jobId)) || localJobs[0];
+      const newApp = {
+        id: Date.now(),
+        job_id: Number(jobId),
+        title: job ? job.title : 'Teaching Position',
+        subject: job ? job.subject : 'Academic',
+        school_name: job ? job.school_name : 'Partner School',
+        status: 'Applied',
+        created_at: new Date().toISOString(),
+        ai_match_score: 95.0,
+        min_salary: job ? job.min_salary : 20000,
+        max_salary: job ? job.max_salary : 35000,
+        job_type: job ? job.job_type : 'Onsite',
+        city: job ? job.city : 'Mumbai'
+      };
+
+      if (!localApplications.some((a) => Number(a.job_id) === Number(jobId))) {
+        localApplications.unshift(newApp);
+        persistApplications();
+      }
+
+      return { message: 'Application submitted successfully (Demo Mode)!' };
+    }
+  },
+
+  getAppliedJobs: async () => {
+    try {
+      return await request('/teacher/applied');
+    } catch (err) {
+      return { applications: localApplications };
+    }
+  },
 
   // School APIs
-  getSchoolProfile: () => request('/school/profile'),
-  updateSchoolProfile: (payload) =>
-    request('/school/profile', {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }),
-  uploadSchoolAvatar: (formData) =>
-    request('/school/avatar', {
-      method: 'POST',
-      body: formData,
-    }),
-  getSchoolJobs: () => request('/school/jobs'),
-  createJob: (payload) =>
-    request('/school/jobs', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    }),
-  updateJob: (jobId, payload) =>
-    request(`/school/jobs/${jobId}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload),
-    }),
-  deleteJob: (jobId) =>
-    request(`/school/jobs/${jobId}`, {
-      method: 'DELETE',
-    }),
-  getJobApplicants: (jobId) => request(`/school/jobs/${jobId}/applicants`),
-  updateApplicantStatus: (appId, status) =>
-    request(`/school/applications/${appId}/status`, {
-      method: 'PATCH',
-      body: JSON.stringify({ status }),
-    }),
-  getTeachers: (params = {}) => {
-    const clean = {};
-    Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== '') {
-        clean[k] = v;
+  getSchoolProfile: async () => {
+    try {
+      return await request('/school/profile');
+    } catch (err) {
+      const session = getStoredSession() || DEMO_SCHOOL;
+      return { user: session.user, profile: session.profile };
+    }
+  },
+
+  updateSchoolProfile: async (payload) => {
+    try {
+      return await request('/school/profile', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      const session = getStoredSession() || JSON.parse(JSON.stringify(DEMO_SCHOOL));
+      session.user = { ...session.user, name: payload.name || session.user.name, phone: payload.phone || session.user.phone, avatar: payload.avatar || session.user.avatar };
+      session.profile = { ...session.profile, ...payload };
+      saveStoredSession(session);
+      return { message: 'School profile updated successfully!', profile: session.profile, user: session.user };
+    }
+  },
+
+  uploadSchoolAvatar: async (formData) => {
+    try {
+      return await request('/school/avatar', {
+        method: 'POST',
+        body: formData,
+      });
+    } catch (err) {
+      const session = getStoredSession() || JSON.parse(JSON.stringify(DEMO_SCHOOL));
+      const fallbackUrl = 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=400&q=80';
+      session.user.avatar = fallbackUrl;
+      session.profile.logo_path = fallbackUrl;
+      saveStoredSession(session);
+      return { message: 'Logo updated!', logoUrl: fallbackUrl };
+    }
+  },
+
+  getSchoolJobs: async () => {
+    try {
+      return await request('/school/jobs');
+    } catch (err) {
+      return { jobs: localJobs.filter((j) => Number(j.school_id) === 1 || !j.school_id) };
+    }
+  },
+
+  createJob: async (payload) => {
+    try {
+      return await request('/school/jobs', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      const newJob = {
+        id: Date.now(),
+        school_id: 1,
+        school_name: 'Paradox High School',
+        title: payload.title || 'Teacher',
+        subject: payload.subject || 'General',
+        post_level: payload.post_level || 'TGT',
+        experience_required: Number(payload.experience_required) || 1,
+        min_salary: Number(payload.min_salary) || 20000,
+        max_salary: Number(payload.max_salary) || 35000,
+        shift_timings: payload.shift_timings || '09:00AM - 02:00PM',
+        openings: Number(payload.openings) || 1,
+        job_type: payload.job_type || 'Onsite',
+        city: 'Mumbai',
+        state: 'Maharashtra',
+        created_at: new Date().toISOString(),
+        status: 'Open',
+        logo_path: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=400&q=80',
+        required_skills: payload.required_skills || 'Subject Knowledge, Pedagogy',
+        match_score: 95
+      };
+
+      localJobs.unshift(newJob);
+      persistJobs();
+      return { message: 'Job created successfully (Demo Mode)!', job: newJob };
+    }
+  },
+
+  updateJob: async (jobId, payload) => {
+    try {
+      return await request(`/school/jobs/${jobId}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+    } catch (err) {
+      const idx = localJobs.findIndex((j) => Number(j.id) === Number(jobId));
+      if (idx !== -1) {
+        localJobs[idx] = { ...localJobs[idx], ...payload };
+        persistJobs();
       }
-    });
-    const query = new URLSearchParams(clean).toString();
-    return request(`/school/teachers${query ? `?${query}` : ''}`);
+      return { message: 'Job updated successfully!' };
+    }
+  },
+
+  deleteJob: async (jobId) => {
+    try {
+      return await request(`/school/jobs/${jobId}`, {
+        method: 'DELETE',
+      });
+    } catch (err) {
+      localJobs = localJobs.filter((j) => Number(j.id) !== Number(jobId));
+      persistJobs();
+      return { message: 'Job deleted successfully!' };
+    }
+  },
+
+  getJobApplicants: async (jobId) => {
+    try {
+      return await request(`/school/jobs/${jobId}/applicants`);
+    } catch (err) {
+      return {
+        applicants: localApplicants.filter(
+          (a) => !jobId || Number(a.job_id) === Number(jobId) || Number(a.job_id) === 1
+        )
+      };
+    }
+  },
+
+  updateApplicantStatus: async (appId, status) => {
+    try {
+      return await request(`/school/applications/${appId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+    } catch (err) {
+      const idx = localApplicants.findIndex((a) => Number(a.id) === Number(appId));
+      if (idx !== -1) {
+        localApplicants[idx].status = status;
+        persistApplicants();
+      }
+      return { success: true, status };
+    }
+  },
+
+  getTeachers: async (params = {}) => {
+    try {
+      const clean = {};
+      Object.entries(params).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') {
+          clean[k] = v;
+        }
+      });
+      const query = new URLSearchParams(clean).toString();
+      return await request(`/school/teachers${query ? `?${query}` : ''}`);
+    } catch (err) {
+      let filtered = [...INITIAL_TEACHERS];
+
+      if (params.search || params.keyword) {
+        const kw = (params.search || params.keyword).toLowerCase();
+        filtered = filtered.filter(
+          (t) =>
+            (t.name || '').toLowerCase().includes(kw) ||
+            (t.subject || '').toLowerCase().includes(kw) ||
+            (t.city || '').toLowerCase().includes(kw) ||
+            (t.parsed_skills || '').toLowerCase().includes(kw)
+        );
+      }
+
+      if (params.subject) {
+        filtered = filtered.filter((t) => (t.subject || '').toLowerCase().includes(params.subject.toLowerCase()));
+      }
+
+      if (params.experience) {
+        filtered = filtered.filter((t) => Number(t.experience_years) >= Number(params.experience));
+      }
+
+      return { teachers: filtered };
+    }
   },
 };
-

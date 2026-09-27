@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../services/api';
+import { clearStoredSession } from '../services/mockData';
 
 const AuthContext = createContext(null);
 
@@ -82,6 +83,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('teachment_token');
+    clearStoredSession();
     setToken('');
     setUser(null);
     setProfile(null);
@@ -96,6 +98,9 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('teachment_token', data.token);
       setToken(data.token);
       setUser(data.user);
+      if (data.profile) {
+        setProfile(data.profile);
+      }
 
       try {
         const me = await api.getMe();
