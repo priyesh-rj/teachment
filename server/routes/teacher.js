@@ -234,13 +234,27 @@ router.get('/profile', async (req, res) => {
 router.put('/profile', async (req, res) => {
   try {
     const {
-      name, phone, avatar,
+      name, email, phone, avatar,
       subject, post, qualifications, syllabus,
-      experience_years, medium, state, district, city, pin_code, gender
+      experience_years, medium, state, district, city, pin_code, gender,
+      parsed_skills
     } = req.body;
 
+    // Check email uniqueness if changing email
+    if (email && email.trim()) {
+      const trimmedEmail = email.trim().toLowerCase();
+      const existing = await db.query(
+        `SELECT id FROM users WHERE LOWER(email) = LOWER($1) AND id != $2`,
+        [trimmedEmail, req.user.id]
+      );
+      if (existing.rows.length > 0) {
+        return res.status(409).json({ error: 'This email address is already in use by another account.' });
+      }
+      await db.query(`UPDATE users SET email = $1 WHERE id = $2`, [trimmedEmail, req.user.id]);
+    }
+
     // Update user table details if provided
-    if (name || phone || avatar) {
+    if (name !== undefined || phone !== undefined || avatar !== undefined) {
       await db.query(
         `UPDATE users SET
           name = COALESCE($1, name),
@@ -251,7 +265,7 @@ router.put('/profile', async (req, res) => {
       );
     }
 
-    // Update teacher_profiles
+    // Update teacher_profiles (everything editable)
     await db.query(
       `UPDATE teacher_profiles SET
         subject = $1,
@@ -264,12 +278,13 @@ router.put('/profile', async (req, res) => {
         district = $8,
         city = $9,
         pin_code = $10,
-        gender = $11
-       WHERE user_id = $12`,
+        gender = $11,
+        parsed_skills = COALESCE($12, parsed_skills)
+       WHERE user_id = $13`,
       [
         subject, post, qualifications, syllabus,
         experience_years || 0, medium, state, district, city, pin_code, gender,
-        req.user.id
+        parsed_skills, req.user.id
       ]
     );
 

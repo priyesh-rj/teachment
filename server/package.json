@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "test:neon": "node scripts/test-neon.js",
+    "migrate:neon": "node scripts/migrate-to-neon.js"
   },
   "dependencies": {
     "axios": "^1.7.9",

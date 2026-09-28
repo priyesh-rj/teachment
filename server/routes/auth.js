@@ -157,8 +157,11 @@ router.post('/demo', async (req, res) => {
     let user = null;
 
     if (role === 'school') {
-      // 1. Try finding primary demo school account
-      let userRes = await db.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', ['teachment.tech@gmail.com']);
+      // 1. Try finding primary demo school account (SD Public School Babhanauli Kushinagar)
+      let userRes = await db.query(
+        'SELECT * FROM users WHERE LOWER(email) = LOWER($1) OR LOWER(email) = LOWER($2)',
+        ['s.d.publicschoolbabhanauli@gmail.com', 'teachment.tech@gmail.com']
+      );
       if (userRes.rows.length > 0) {
         user = userRes.rows[0];
       } else {
@@ -167,14 +170,14 @@ router.post('/demo', async (req, res) => {
         if (userRes.rows.length > 0) {
           user = userRes.rows[0];
         } else {
-          // 3. Auto-provision demo school account
+          // 3. Auto-provision SD Public School Babhanauli Kushinagar
           const password_hash = await bcrypt.hash('password123', 10);
           const insUser = await db.query(
             `INSERT INTO users (name, email, password_hash, role, phone, avatar)
              VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
             [
-              'Paradox International',
-              'teachment.tech@gmail.com',
+              'SD Public school babhanauli kushinagar',
+              's.d.publicschoolbabhanauli@gmail.com',
               password_hash,
               'school',
               '9335893076',
@@ -188,14 +191,14 @@ router.post('/demo', async (req, res) => {
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
             [
               user.id,
-              'Paradox International',
-              'Teachment Team',
+              'SD Public school babhanauli kushinagar',
+              'Principal SD Public School',
               'CBSE',
-              'A leading progressive K-12 institution committed to modern pedagogical methods, academic excellence, and holistic student development.',
-              'Maharashtra',
-              'Mumbai',
-              'Mumbai',
-              'Sector 14, Bandra West, Mumbai, 400050',
+              'SD Public School, Babhanauli, Kushinagar is committed to academic excellence, progressive teaching standards, and holistic student development.',
+              'Uttar Pradesh',
+              'Kushinagar',
+              'Babhanauli',
+              'Babhanauli, Kushinagar, Uttar Pradesh, 274304',
               user.avatar,
               100
             ]

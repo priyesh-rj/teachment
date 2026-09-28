@@ -115,7 +115,7 @@ export const AuthProvider = ({ children }) => {
       console.warn('Demo endpoint failed, falling back to credentials:', err.message);
       let credentials = { email: 'teacher@teachment.com', password: 'password123' };
       if (accountType === 'school') {
-        credentials = { email: 'teachment.tech@gmail.com', password: 'password123' };
+        credentials = { email: 's.d.publicschoolbabhanauli@gmail.com', password: 'password123' };
       } else if (accountType === 'pooja') {
         credentials = { email: 'pooja.verma@gmail.com', password: 'password123' };
       }

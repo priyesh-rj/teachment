@@ -100,9 +100,27 @@ npm run dev
 PORT=5000
 JWT_SECRET=your_jwt_secret_key_here
 AI_SERVICE_URL=http://localhost:8000
-DATABASE_URL=postgres://postgres:postgres@localhost:5432/teachment_db
+
+# Neon Serverless PostgreSQL:
+DATABASE_URL=postgresql://neondb_owner:YOUR_PASSWORD@ep-xyz.us-east-2.aws.neon.tech/neondb?sslmode=require
+USE_POSTGRES=true
 USE_SQLITE_FALLBACK=true
 ```
+
+### 🐘 Storing Data on Neon (Serverless PostgreSQL)
+1. Create a free PostgreSQL database on [Neon](https://neon.tech).
+2. Copy your connection string from the Neon dashboard.
+3. Paste the connection string into `server/.env` under `DATABASE_URL`.
+4. Run diagnostics to test your connection:
+   ```bash
+   cd server
+   npm run test:neon
+   ```
+5. Migrate all existing local database data to Neon:
+   ```bash
+   npm run migrate:neon
+   ```
+   *(Or run `npm run seed` to seed fresh demo data directly into Neon)*
 
 ---
 

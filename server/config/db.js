@@ -6,24 +6,46 @@ let dbType = 'sqlite';
 let pgPool = null;
 let sqliteDb = null;
 
-// Dual DB Adapter: PostgreSQL with automatic SQLite fallback
+// Dual DB Adapter: PostgreSQL (Neon / Cloud Postgres) with automatic SQLite fallback
 const initDatabase = async () => {
-  if (process.env.DATABASE_URL && process.env.USE_POSTGRES === 'true') {
+  const dbUrl = process.env.DATABASE_URL || '';
+  const isPgUrl = dbUrl.startsWith('postgres://') || dbUrl.startsWith('postgresql://');
+  const isNeon = dbUrl.includes('neon.tech') || dbUrl.includes('sslmode=require');
+  const explicitlyDisabled = process.env.USE_POSTGRES === 'false';
+
+  // Automatically attempt PostgreSQL if DATABASE_URL is set (especially Neon) unless explicitly disabled
+  if (isPgUrl && !explicitlyDisabled && (process.env.USE_POSTGRES === 'true' || isNeon || !dbUrl.includes('localhost'))) {
     try {
       const { Pool } = require('pg');
-      const pool = new Pool({
-        connectionString: process.env.DATABASE_URL,
-        connectionTimeoutMillis: 3000
-      });
+      const poolConfig = {
+        connectionString: dbUrl,
+        connectionTimeoutMillis: 10000 // 10s for Neon serverless wake-up from cold starts
+      };
+
+      // Neon and cloud hosted Postgres require SSL
+      if (isNeon || process.env.DATABASE_SSL === 'true' || !dbUrl.includes('localhost')) {
+        poolConfig.ssl = {
+          rejectUnauthorized: false
+        };
+      }
+
+      console.log(`🔌 Attempting connection to PostgreSQL${isNeon ? ' (Neon Cloud)' : ''}...`);
+      const pool = new Pool(poolConfig);
+
       // Test connection
-      await pool.query('SELECT 1');
-      console.log('✅ Connected to PostgreSQL database.');
-      pgPool = pool;
-      dbType = 'postgres';
-      await runMigrations();
-      return;
+      const testRes = await pool.query('SELECT 1 as connected');
+      if (testRes.rows && testRes.rows.length > 0) {
+        console.log(`✅ Connected successfully to ${isNeon ? 'Neon Serverless' : 'PostgreSQL'} database.`);
+        pgPool = pool;
+        dbType = 'postgres';
+        await runMigrations();
+        return;
+      }
     } catch (err) {
-      console.warn('⚠️ PostgreSQL connection failed:', err.message);
+      console.warn('⚠️ PostgreSQL / Neon connection failed:', err.message);
+      if (process.env.USE_SQLITE_FALLBACK === 'false') {
+        throw err;
+      }
       console.log('🔄 Falling back to local SQLite database for instant localhost operation...');
     }
   }
@@ -57,7 +79,9 @@ const runMigrations = async () => {
     const pgSql = schemaSql
       .replace(/INTEGER PRIMARY KEY AUTOINCREMENT/g, 'SERIAL PRIMARY KEY');
     await pgPool.query(pgSql);
-    console.log('✅ PostgreSQL tables verified/created.');
+    // Ensure required_skills column exists on jobs table
+    await pgPool.query('ALTER TABLE jobs ADD COLUMN IF NOT EXISTS required_skills TEXT;');
+    console.log('✅ PostgreSQL / Neon tables verified/created.');
   } else {
     // Run SQLite statements
     const statements = schemaSql
@@ -89,11 +113,37 @@ const runMigrations = async () => {
  * Universal query runner:
  * Accepts Postgres style parameterization ($1, $2, ...) and standard SQL.
  * If running on SQLite, automatically converts $1, $2 to ?
+ * If running on Postgres, automatically adds RETURNING id to INSERTs for uniform lastID behavior
+ * and translates SQLite date helper functions.
  */
-const query = (text, params = []) => {
+const query = async (text, params = []) => {
   const safeParams = params.map(p => (p === undefined ? null : p));
+
   if (dbType === 'postgres') {
-    return pgPool.query(text, safeParams);
+    let pgText = text;
+
+    // Convert SQLite datetime('now', ...) to PostgreSQL (NOW() - INTERVAL '...')
+    // e.g. datetime('now', '-2 days') -> (NOW() - INTERVAL '2 days')
+    // e.g. datetime('now', '-1 hour') -> (NOW() - INTERVAL '1 hour')
+    pgText = pgText.replace(
+      /datetime\s*\(\s*['"]now['"]\s*,\s*['"]-?(\d+)\s*(days?|hours?|mins?|minutes?|seconds?)['"]\s*\)/gi,
+      "(NOW() - INTERVAL '$1 $2')"
+    );
+
+    // Automatically append RETURNING id for INSERT queries if not already present
+    // This guarantees res.rows[0]?.id and res.lastID work identically across both SQLite and Postgres
+    const isInsert = /^\s*INSERT\s+INTO/i.test(pgText);
+    const hasReturning = /\bRETURNING\b/i.test(pgText);
+
+    if (isInsert && !hasReturning) {
+      pgText = `${pgText.trim().replace(/;+$/, '')} RETURNING id;`;
+    }
+
+    const res = await pgPool.query(pgText, safeParams);
+    if (isInsert && res.rows && res.rows[0] && res.rows[0].id) {
+      res.lastID = res.rows[0].id;
+    }
+    return res;
   }
 
   return new Promise((resolve, reject) => {
@@ -124,5 +174,6 @@ const query = (text, params = []) => {
 module.exports = {
   initDatabase,
   query,
-  getDbType: () => dbType
+  getDbType: () => dbType,
+  getPool: () => pgPool
 };

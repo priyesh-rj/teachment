@@ -83,6 +83,7 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
       setProfileData(res);
       setEditForm({
         name: res.user?.name || '',
+        email: res.user?.email || '',
         phone: res.user?.phone || '',
         avatar: res.user?.avatar || '',
         subject: res.profile?.subject || '',
@@ -95,7 +96,8 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
         district: res.profile?.district || '',
         city: res.profile?.city || '',
         pin_code: res.profile?.pin_code || '',
-        gender: res.profile?.gender || '',
+        gender: res.profile?.gender || 'Male',
+        parsed_skills: res.profile?.parsed_skills || '',
       });
     } catch (err) {
       console.error('Error fetching teacher profile:', err);
@@ -986,6 +988,16 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
                   />
                 </div>
                 <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={editForm.email || ''}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    required
+                  />
+                </div>
+                <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Phone Number</label>
                   <input
                     type="text"
@@ -994,6 +1006,18 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
                     className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500"
                     required
                   />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Gender</label>
+                  <select
+                    value={editForm.gender || 'Male'}
+                    onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500 bg-white"
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Subject</label>
@@ -1091,6 +1115,18 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
                     value={editForm.pin_code}
                     onChange={(e) => setEditForm({ ...editForm, pin_code: e.target.value })}
                     className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">
+                    Skills / Key Competencies (comma-separated)
+                  </label>
+                  <textarea
+                    rows="2"
+                    value={editForm.parsed_skills || ''}
+                    onChange={(e) => setEditForm({ ...editForm, parsed_skills: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                    placeholder="e.g. Mathematics, Physics, Classroom Management, Lesson Planning, CBSE Curriculum"
                   />
                 </div>
                 <div className="sm:col-span-2">
