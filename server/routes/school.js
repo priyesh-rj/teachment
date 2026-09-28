@@ -281,12 +281,10 @@ router.get('/jobs', async (req, res) => {
     const jobsRes = await db.query(
       `SELECT 
         j.*,
-        COUNT(ja.id) as applicant_count,
-        MAX(ja.ai_match_score) as top_match_score
+        CAST(COALESCE((SELECT COUNT(*) FROM job_applications ja WHERE ja.job_id = j.id), 0) AS INTEGER) AS applicant_count,
+        (SELECT MAX(ja.ai_match_score) FROM job_applications ja WHERE ja.job_id = j.id) AS top_match_score
        FROM jobs j
-       LEFT JOIN job_applications ja ON j.id = ja.job_id
        WHERE j.school_id = $1
-       GROUP BY j.id
        ORDER BY j.created_at DESC`,
       [schoolId]
     );
@@ -303,7 +301,7 @@ router.post('/jobs', async (req, res) => {
   try {
     const {
       title, subject, post_level, experience_required,
-      min_salary, max_salary, shift_timings, openings, job_type, required_skills
+      min_salary, max_salary, shift_timings, openings, job_type, required_skills, status
     } = req.body;
 
     if (!title || !subject || !post_level) {
@@ -320,7 +318,7 @@ router.post('/jobs', async (req, res) => {
       `INSERT INTO jobs (
         school_id, title, subject, post_level, experience_required,
         min_salary, max_salary, shift_timings, openings, job_type, status, required_skills
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Open', $11)`,
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [
         schoolId, title, subject, post_level,
         experience_required || 0,
@@ -329,6 +327,7 @@ router.post('/jobs', async (req, res) => {
         shift_timings || '10:00AM - 2:00PM',
         openings || 1,
         job_type || 'Onsite',
+        status || 'Open',
         required_skills || null
       ]
     );

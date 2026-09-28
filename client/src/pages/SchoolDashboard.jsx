@@ -134,6 +134,7 @@ export default function SchoolDashboard({ isPostModalOpen, setIsPostModalOpen })
     openings: 1,
     job_type: 'Onsite',
     required_skills: '',
+    status: 'Open',
   });
 
   useEffect(() => {
@@ -187,6 +188,7 @@ export default function SchoolDashboard({ isPostModalOpen, setIsPostModalOpen })
         openings: 1,
         job_type: 'Onsite',
         required_skills: '',
+        status: 'Open',
       });
       await fetchSchoolData();
     } catch (err) {
@@ -641,7 +643,7 @@ export default function SchoolDashboard({ isPostModalOpen, setIsPostModalOpen })
                         </span>
                       </div>
                       <div className="text-sm font-semibold text-slate-600">
-                        {p.school_name || 'Paradox'}
+                        {p.school_name || u.name || 'School'}
                       </div>
 
                       {/* Details row (Screenshot 1) */}
@@ -656,9 +658,9 @@ export default function SchoolDashboard({ isPostModalOpen, setIsPostModalOpen })
                           {job.min_salary} - {job.max_salary}
                         </span>
                         <span className="text-slate-300">|</span>
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                          {p.city || 'Mumbai'}
+                        <span className="flex items-center gap-1 font-medium text-slate-700">
+                          <MapPin className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                          <span>{[p.city, p.district, p.state].filter(Boolean).join(', ') || p.address || 'Campus Location'}</span>
                         </span>
                         <span className="text-slate-300">|</span>
                         <span className="flex items-center gap-1 font-medium text-slate-600">
@@ -699,18 +701,40 @@ export default function SchoolDashboard({ isPostModalOpen, setIsPostModalOpen })
                       <div className="pt-2 flex flex-wrap items-center gap-2.5">
                         <button
                           onClick={() => openEditModal(job)}
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-200/60 transition shadow-2xs"
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-200/60 transition shadow-2xs cursor-pointer"
                         >
                           <Edit className="w-3.5 h-3.5 text-indigo-600" />
                           <span>Edit Vacancy</span>
                         </button>
 
                         <button
+                          onClick={() => handleCloseJob(job.id, job.status)}
+                          className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition shadow-2xs cursor-pointer ${
+                            (job.status || 'Open').toLowerCase() === 'closed'
+                              ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200'
+                              : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border-amber-200'
+                          }`}
+                          title="Click to toggle vacancy Open/Closed status"
+                        >
+                          {(job.status || 'Open').toLowerCase() === 'closed' ? (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>Reopen Vacancy</span>
+                            </>
+                          ) : (
+                            <>
+                              <XCircle className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Mark as Closed</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
                           onClick={() => handleViewApplicants(job)}
-                          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition"
+                          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg transition cursor-pointer"
                         >
                           <Users className="w-3.5 h-3.5 text-slate-500" />
-                          <span>Applicants ({job.applicant_count || 0})</span>
+                          <span>Applicants ({parseInt(job.applicant_count, 10) || 0})</span>
                           {job.top_match_score && (
                             <span className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-bold">
                               Top: {job.top_match_score}%
@@ -848,11 +872,20 @@ export default function SchoolDashboard({ isPostModalOpen, setIsPostModalOpen })
                               </span>
                             )}
                           </div>
-                          <div className="text-xs text-slate-500 flex flex-wrap items-center gap-3 pt-0.5">
-                            <span>Specialization: <strong>{cand.subject}</strong></span>
-                            <span>Level: <strong>{cand.post}</strong></span>
-                            <span>Exp: <strong>{cand.experience_years > 0 ? `${cand.experience_years} Years` : 'Fresher'}</strong></span>
-                            <span>City: <strong>{cand.city}</strong></span>
+                          <div className="text-xs text-slate-500 flex flex-wrap items-center gap-3 pt-1">
+                            <span>Specialization: <strong className="text-slate-800">{cand.subject || 'Not specified'}</strong></span>
+                            <span>•</span>
+                            <span>Level: <strong className="text-slate-800">{cand.post || 'TGT'}</strong></span>
+                            <span>•</span>
+                            <span>Exp: <strong className="text-slate-800">{cand.experience_years > 0 ? `${cand.experience_years} Years` : 'Fresher'}</strong></span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3 text-indigo-500 shrink-0" />
+                              <strong className="text-slate-800">
+                                {[cand.city, cand.district, cand.state].filter(Boolean).join(', ') || 'Location on Profile'}
+                                {cand.pin_code ? ` (${cand.pin_code})` : ''}
+                              </strong>
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -907,18 +940,45 @@ export default function SchoolDashboard({ isPostModalOpen, setIsPostModalOpen })
                       )}
                     </div>
 
+                    {/* Educator Skills Tags */}
+                    {cand.parsed_skills && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                        <span className="text-[11px] font-semibold text-slate-500">Indexed Skills:</span>
+                        {cand.parsed_skills.split(',').filter(Boolean).map((skill, sIdx) => (
+                          <span
+                            key={sIdx}
+                            className="text-[11px] font-medium bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md border border-indigo-100"
+                          >
+                            {skill.trim()}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Pedagogical tags & Status controls */}
                     <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                      <div className="text-xs text-slate-500 flex items-center gap-2">
-                        <span>Qualifications: {cand.qualifications || 'B.Ed'}</span>
-                        <span>• Board: {cand.syllabus || 'CBSE'}</span>
+                      <div className="text-xs text-slate-500 flex flex-wrap items-center gap-2">
+                        <span>Qualifications: <strong className="text-slate-700">{cand.qualifications || 'B.Ed'}</strong></span>
+                        <span>•</span>
+                        <span>Board: <strong className="text-slate-700">{cand.syllabus || 'CBSE'}</strong></span>
+                        <span>•</span>
+                        <span>Medium: <strong className="text-slate-700">{cand.medium || 'English'}</strong></span>
+                        {cand.applied_at && (
+                          <>
+                            <span>•</span>
+                            <span className="text-slate-400 flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {formatTimeAgo(cand.applied_at)}
+                            </span>
+                          </>
+                        )}
                       </div>
 
                       {/* Direct status buttons */}
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleUpdateApplicantStatus(cand.application_id, 'Shortlisted')}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                             cand.application_status === 'Shortlisted'
                               ? 'bg-emerald-600 text-white'
                               : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
@@ -928,7 +988,7 @@ export default function SchoolDashboard({ isPostModalOpen, setIsPostModalOpen })
                         </button>
                         <button
                           onClick={() => handleUpdateApplicantStatus(cand.application_id, 'Contacted')}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                             cand.application_status === 'Contacted'
                               ? 'bg-blue-600 text-white'
                               : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
@@ -938,7 +998,7 @@ export default function SchoolDashboard({ isPostModalOpen, setIsPostModalOpen })
                         </button>
                         <button
                           onClick={() => handleUpdateApplicantStatus(cand.application_id, 'Rejected')}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                             cand.application_status === 'Rejected'
                               ? 'bg-red-600 text-white shadow-xs'
                               : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
@@ -1067,6 +1127,18 @@ export default function SchoolDashboard({ isPostModalOpen, setIsPostModalOpen })
                   </select>
                 </div>
 
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Initial Status Tag</label>
+                  <select
+                    value={newJobForm.status}
+                    onChange={(e) => setNewJobForm({ ...newJobForm, status: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="Open">🟢 Open (Actively Hiring)</option>
+                    <option value="Closed">🔴 Closed (Applications Closed)</option>
+                  </select>
+                </div>
+
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-semibold text-slate-600 mb-1">Required Skills / Keywords</label>
                   <input
@@ -1076,6 +1148,14 @@ export default function SchoolDashboard({ isPostModalOpen, setIsPostModalOpen })
                     placeholder="e.g. CBSE Syllabus, Python, Laboratory, Problem Solving (comma-separated)"
                     className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-indigo-500"
                   />
+                </div>
+
+                {/* Campus Location notice */}
+                <div className="sm:col-span-2 p-3 bg-indigo-50/70 border border-indigo-100 rounded-xl flex items-center gap-2 text-xs text-indigo-900">
+                  <MapPin className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <span>
+                    <strong>Campus Location:</strong> {[p.city, p.district, p.state].filter(Boolean).join(', ') || p.address || 'Babhanauli, Kushinagar, Uttar Pradesh'}
+                  </span>
                 </div>
               </div>
 

@@ -14,7 +14,8 @@ import {
   SlidersHorizontal,
   ChevronDown,
   ChevronUp,
-  RotateCcw
+  RotateCcw,
+  XCircle
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -60,7 +61,8 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
   const [loading, setLoading] = useState(true);
   const [searchKeyword, setSearchKeyword] = useState(initialKeyword);
 
-  // Exact filters from uploaded screenshot
+  // Exact filters from uploaded screenshot + status tag filter
+  const [statusFilter, setStatusFilter] = useState('All'); // 'All' | 'Open' | 'Closed'
   const [isOnline, setIsOnline] = useState(false);
   const [datePosted, setDatePosted] = useState('All');
   const [selectedExperience, setSelectedExperience] = useState({
@@ -78,6 +80,7 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
   const [savedJobs, setSavedJobs] = useState(() => new Set(getSavedJobs().map((j) => String(j.id))));
 
   const hasActiveFilters =
+    statusFilter !== 'All' ||
     isOnline ||
     datePosted !== 'All' ||
     Object.values(selectedExperience).some(Boolean) ||
@@ -85,6 +88,7 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
     salaryRange.max < 120000;
 
   const handleResetFilters = () => {
+    setStatusFilter('All');
     setIsOnline(false);
     setDatePosted('All');
     setSelectedExperience({
@@ -114,7 +118,7 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
 
   useEffect(() => {
     fetchJobs();
-  }, [isOnline, datePosted, selectedExperience, salaryRange.min, salaryRange.max, searchKeyword]);
+  }, [statusFilter, isOnline, datePosted, selectedExperience, salaryRange.min, salaryRange.max, searchKeyword]);
 
   const fetchJobs = async () => {
     setLoading(true);
@@ -125,6 +129,7 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
 
       const res = await api.getJobs({
         keyword: searchKeyword,
+        status: statusFilter === 'All' ? '' : statusFilter,
         jobType: isOnline ? 'Online' : '',
         datePosted: datePosted === 'All' ? '' : datePosted,
         experience: activeExp.join(','),
@@ -139,7 +144,26 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
     }
   };
 
+  const formatLocation = (j) => {
+    const parts = [
+      j.school_city || j.city,
+      j.school_district || j.district,
+      j.school_state || j.state,
+    ].filter(Boolean);
+    if (parts.length > 0) return parts.join(', ');
+    if (j.school_address || j.address) return j.school_address || j.address;
+    return 'Location as per School Campus';
+  };
+
   const filteredJobs = jobs.filter((job) => {
+    // 0. Status Filter (Open / Closed)
+    if (statusFilter !== 'All') {
+      const jStatus = (job.status || 'Open').toLowerCase();
+      if (jStatus !== statusFilter.toLowerCase()) {
+        return false;
+      }
+    }
+
     // 1. Online filter
     if (isOnline) {
       const type = (job.job_type || '').toLowerCase();
@@ -267,6 +291,33 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
                 onChange={setIsOnline}
                 label="Online"
               />
+            </div>
+
+            {/* Vacancy Status (Open / Closed) */}
+            <div className="pt-5 border-t border-slate-100">
+              <h3 className="text-base font-bold text-slate-900 mb-3.5">Vacancy Status</h3>
+              <div className="space-y-2.5">
+                {[
+                  { id: 'status-all', value: 'All', label: 'All Vacancies' },
+                  { id: 'status-open', value: 'Open', label: '🟢 Open Only' },
+                  { id: 'status-closed', value: 'Closed', label: '🔴 Closed Only' },
+                ].map((item) => (
+                  <label
+                    key={item.value}
+                    className="flex items-center gap-3 text-sm font-medium text-slate-700 cursor-pointer select-none group"
+                  >
+                    <input
+                      type="radio"
+                      name="statusFilter"
+                      value={item.value}
+                      checked={statusFilter === item.value}
+                      onChange={() => setStatusFilter(item.value)}
+                      className="w-4 h-4 text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer accent-indigo-600"
+                    />
+                    <span className="group-hover:text-indigo-600 transition-colors">{item.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
 
             {/* 2. Date Posted */}
@@ -443,9 +494,25 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                       {/* Job Header & Metadata */}
                       <div className="space-y-1.5 flex-1">
-                        <h2 className="text-xl font-bold text-slate-900 hover:text-indigo-600 cursor-pointer transition">
-                          {job.title}
-                        </h2>
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <h2 className="text-xl font-bold text-slate-900 hover:text-indigo-600 cursor-pointer transition">
+                            {job.title}
+                          </h2>
+                          <span
+                            className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full font-bold border ${
+                              (job.status || 'Open').toLowerCase() === 'open'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-rose-50 text-rose-700 border-rose-200'
+                            }`}
+                          >
+                            <span
+                              className={`w-2 h-2 rounded-full ${
+                                (job.status || 'Open').toLowerCase() === 'open' ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'
+                              }`}
+                            />
+                            {(job.status || 'Open').toLowerCase() === 'open' ? 'Open' : 'Closed'}
+                          </span>
+                        </div>
                         <div className="text-sm font-semibold text-slate-600 flex items-center gap-1.5">
                           <span>{job.school_name}</span>
                           {job.board && (
@@ -467,14 +534,14 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
                             {job.min_salary?.toLocaleString()} - {job.max_salary?.toLocaleString()}
                           </span>
                           <span className="text-slate-300">|</span>
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                            {job.school_city || 'Mumbai'}
+                          <span className="flex items-center gap-1 font-medium text-slate-700">
+                            <MapPin className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                            <span>{formatLocation(job)}</span>
                           </span>
                           <span className="text-slate-300">|</span>
                           <span className="flex items-center gap-1">
                             <Clock className="w-3.5 h-3.5 text-slate-400" />
-                            Active Listing
+                            {(job.status || 'Open').toLowerCase() === 'open' ? 'Actively Hiring' : 'Applications Closed'}
                           </span>
                         </div>
 
@@ -507,10 +574,11 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
                               <strong>Shift Hours:</strong> {job.shift_timings}
                             </p>
                             <p>
-                              <strong>Location:</strong> {job.school_city}, {job.school_district}, {job.school_state}
+                              <strong>Campus Location:</strong> {formatLocation(job)}
+                              {job.school_address && job.school_address !== formatLocation(job) ? ` (${job.school_address})` : ''}
                             </p>
                             <p>
-                              <strong>Direct Direct Contact:</strong> Direct recruitment platform. The school will contact you directly via phone/email once applied.
+                              <strong>Direct Recruitment:</strong> Direct hiring by school. The school principal will contact you directly via phone or email upon application review.
                             </p>
                           </div>
                         )}
@@ -543,11 +611,16 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
                               </span>
                             )}
                           </div>
+                        ) : (job.status || 'Open').toLowerCase() === 'closed' ? (
+                          <div className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-500 border border-slate-200 text-sm font-bold cursor-not-allowed select-none">
+                            <XCircle className="w-4 h-4 text-slate-400" />
+                            <span>Applications Closed</span>
+                          </div>
                         ) : (
                           <button
                             onClick={() => handleApply(job.id)}
                             disabled={applyingId === job.id}
-                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-100 hover:shadow-indigo-200 transition"
+                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-md shadow-indigo-100 hover:shadow-indigo-200 transition cursor-pointer"
                           >
                             <Sparkles className="w-4 h-4" />
                             <span>{applyingId === job.id ? 'Scoring AI...' : 'Apply Job'}</span>

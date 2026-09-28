@@ -891,9 +891,13 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
                       </div>
                       <div className="text-sm font-medium text-slate-600">{app.school_name}</div>
                       <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-1">
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5" />
-                          {app.school_city}, {app.school_state}
+                        <span className="flex items-center gap-1 font-medium text-slate-700">
+                          <MapPin className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                          <span>
+                            {[app.school_city || app.city, app.school_district || app.district, app.school_state || app.state]
+                              .filter(Boolean)
+                              .join(', ') || 'Campus Location'}
+                          </span>
                         </span>
                         <span className="flex items-center gap-1">
                           <IndianRupee className="w-3.5 h-3.5" />

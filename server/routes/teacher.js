@@ -104,6 +104,7 @@ router.get('/jobs', optionalToken, async (req, res) => {
         s.city as school_city,
         s.district as school_district,
         s.state as school_state,
+        s.address as school_address,
         s.logo_path,
         CASE WHEN ja.id IS NOT NULL THEN 1 ELSE 0 END as is_applied,
         ja.status as application_status,
@@ -111,17 +112,28 @@ router.get('/jobs', optionalToken, async (req, res) => {
       FROM jobs j
       JOIN school_profiles s ON j.school_id = s.id
       LEFT JOIN job_applications ja ON ja.job_id = j.id AND ja.teacher_id = $1
-      WHERE j.status = 'Open'
+      WHERE 1=1
     `;
     const params = [teacherId];
     let paramIndex = 2;
+
+    // Filter by status if explicitly requested (e.g. status='Open' or status='Closed')
+    const { status } = req.query;
+    if (status && status !== 'All') {
+      queryText += ` AND LOWER(j.status) = LOWER($${paramIndex})`;
+      params.push(status);
+      paramIndex++;
+    }
 
     if (keyword && keyword.trim() !== '') {
       queryText += ` AND (
         LOWER(j.title) LIKE LOWER($${paramIndex}) OR
         LOWER(j.subject) LIKE LOWER($${paramIndex}) OR
         LOWER(s.school_name) LIKE LOWER($${paramIndex}) OR
-        LOWER(s.city) LIKE LOWER($${paramIndex})
+        LOWER(COALESCE(s.city, '')) LIKE LOWER($${paramIndex}) OR
+        LOWER(COALESCE(s.district, '')) LIKE LOWER($${paramIndex}) OR
+        LOWER(COALESCE(s.state, '')) LIKE LOWER($${paramIndex}) OR
+        LOWER(COALESCE(j.required_skills, '')) LIKE LOWER($${paramIndex})
       )`;
       params.push(`%${keyword.trim()}%`);
       paramIndex++;
@@ -465,9 +477,10 @@ router.post('/apply/:jobId', async (req, res) => {
   try {
     const jobId = req.params.jobId;
 
-    const teacherProf = await db.query(`SELECT * FROM teacher_profiles WHERE user_id = $1`, [req.user.id]);
+    let teacherProf = await db.query(`SELECT * FROM teacher_profiles WHERE user_id = $1`, [req.user.id]);
     if (teacherProf.rows.length === 0) {
-      return res.status(404).json({ error: 'Teacher profile not found.' });
+      await db.query(`INSERT INTO teacher_profiles (user_id) VALUES ($1)`, [req.user.id]);
+      teacherProf = await db.query(`SELECT * FROM teacher_profiles WHERE user_id = $1`, [req.user.id]);
     }
     const teacher = teacherProf.rows[0];
 
