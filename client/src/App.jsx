@@ -7,6 +7,7 @@ import TeacherDashboard from './pages/TeacherDashboard';
 import SchoolDashboard from './pages/SchoolDashboard';
 import JobSearch from './pages/JobSearch';
 import TeachersDirectory from './pages/TeachersDirectory';
+import SchoolsDirectory from './pages/SchoolsDirectory';
 import AuthModal from './components/AuthModal';
 import { Building2, MapPin, Sparkles, CheckCircle2, GraduationCap, ArrowRight } from 'lucide-react';
 
@@ -169,82 +170,10 @@ function AppContent() {
         )}
 
         {activePage === 'schools' && (
-          <main className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
-            <div className="text-center max-w-2xl mx-auto mb-10">
-              <h2 className="text-3xl font-extrabold text-slate-900">Partner School Directory</h2>
-              <p className="text-sm text-slate-500 mt-2">
-                Recruiting directly through TEACHMENT with unmasked contact pipelines.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* School 1: Paradox */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs hover:border-indigo-300 transition space-y-4">
-                <div className="flex items-center gap-4">
-                  <img
-                    src="https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=400&q=80"
-                    alt="Paradox"
-                    className="w-16 h-16 rounded-xl object-cover"
-                  />
-                  <div>
-                    <h3 className="text-xl font-bold text-slate-900">Paradox International</h3>
-                    <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
-                      <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-semibold">CBSE Board</span>
-                      <span>• Principal: Teachment Team</span>
-                    </div>
-                  </div>
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  A leading progressive K-12 institution committed to modern pedagogical methods, academic excellence, and holistic student development.
-                </p>
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5" />
-                    Mumbai, Maharashtra
-                  </span>
-                  <button
-                    onClick={() => navigateToPage('jobs')}
-                    className="text-indigo-600 font-bold hover:underline cursor-pointer"
-                  >
-                    View 3 Vacancies →
-                  </button>
-                </div>
-              </div>
-
-              {/* School 2: Daffodils */}
-              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs hover:border-indigo-300 transition space-y-4">
-                <div className="flex items-center gap-4">
-                  <img
-                    src="https://images.unsplash.com/photo-1546410531-bb4caa6b424d?auto=format&fit=crop&w=400&q=80"
-                    alt="Daffodils"
-                    className="w-16 h-16 rounded-xl object-cover"
-                  />
-                  <div>
-                    <h3 className="text-xl font-bold text-slate-900">Daffodils World School</h3>
-                    <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
-                      <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-semibold">CBSE Board</span>
-                      <span>• Principal: Dr. Ananya Sen</span>
-                    </div>
-                  </div>
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  State-of-the-art infrastructure fostering innovative learning, STEM robotics, and holistic sports culture.
-                </p>
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                  <span className="flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5" />
-                    Sikar, Rajasthan
-                  </span>
-                  <button
-                    onClick={() => navigateToPage('jobs')}
-                    className="text-indigo-600 font-bold hover:underline cursor-pointer"
-                  >
-                    View 1 Vacancy →
-                  </button>
-                </div>
-              </div>
-            </div>
-          </main>
+          <SchoolsDirectory
+            onNavigateToJobs={() => navigateToPage('jobs')}
+            onOpenAuthModal={openAuthModal}
+          />
         )}
       </div>
 

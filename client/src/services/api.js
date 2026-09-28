@@ -3,6 +3,7 @@ import {
   DEMO_SCHOOL,
   INITIAL_JOBS,
   INITIAL_TEACHERS,
+  INITIAL_SCHOOLS,
   INITIAL_APPLICATIONS,
   INITIAL_APPLICANTS,
   getStoredSession,
@@ -474,6 +475,14 @@ export const api = {
     }
   },
 
+  getSchools: async () => {
+    try {
+      return await request('/teacher/schools');
+    } catch (err) {
+      return { schools: INITIAL_SCHOOLS };
+    }
+  },
+
   getSchoolJobs: async () => {
     try {
       return await request('/school/jobs');
@@ -489,10 +498,16 @@ export const api = {
         body: JSON.stringify(payload),
       });
     } catch (err) {
+      const activeSession = getStoredSession();
+      const schoolName = activeSession?.profile?.school_name || DEMO_SCHOOL.profile.school_name;
+      const schoolLogo = activeSession?.profile?.logo_path || DEMO_SCHOOL.profile.logo_path;
+      const schoolCity = activeSession?.profile?.city || DEMO_SCHOOL.profile.city;
+      const schoolState = activeSession?.profile?.state || DEMO_SCHOOL.profile.state;
+
       const newJob = {
         id: Date.now(),
         school_id: 1,
-        school_name: 'Paradox High School',
+        school_name: schoolName,
         title: payload.title || 'Teacher',
         subject: payload.subject || 'General',
         post_level: payload.post_level || 'TGT',
@@ -502,11 +517,11 @@ export const api = {
         shift_timings: payload.shift_timings || '09:00AM - 02:00PM',
         openings: Number(payload.openings) || 1,
         job_type: payload.job_type || 'Onsite',
-        city: 'Mumbai',
-        state: 'Maharashtra',
+        city: schoolCity,
+        state: schoolState,
         created_at: new Date().toISOString(),
         status: 'Open',
-        logo_path: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=400&q=80',
+        logo_path: schoolLogo,
         required_skills: payload.required_skills || 'Subject Knowledge, Pedagogy',
         match_score: 95
       };

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   GraduationCap,
   Building2,
@@ -26,6 +26,7 @@ import {
   PhoneCall
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { api } from '../services/api';
 
 export default function HomePage({
   onOpenAuthModal,
@@ -40,103 +41,30 @@ export default function HomePage({
   const [heroSubject, setHeroSubject] = useState('');
   const [heroLevel, setHeroLevel] = useState('');
 
-  // Sample curated featured jobs for the homepage
-  const featuredJobs = [
-    {
-      id: 1,
-      title: 'PGT Mathematics Senior Faculty',
-      school: 'Paradox International School',
-      board: 'CBSE',
-      location: 'Mumbai, Maharashtra',
-      level: 'PGT',
-      subject: 'Mathematics',
-      salary: '₹55,000 - ₹75,000 / mo',
-      experience: '3+ Years',
-      type: 'Full-time',
-      urgent: true,
-      skills: ['Classroom Management', 'Calculus', 'CBSE Curriculum', 'Smart Board'],
-      logo: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=120&q=80'
-    },
-    {
-      id: 2,
-      title: 'TGT English & Communication',
-      school: 'Daffodils World School',
-      board: 'CBSE',
-      location: 'Sikar, Rajasthan',
-      level: 'TGT',
-      subject: 'English',
-      salary: '₹38,000 - ₹50,000 / mo',
-      experience: '2+ Years',
-      type: 'Full-time',
-      urgent: false,
-      skills: ['Pedagogy', 'Literature', 'Phonics', 'Interactive Teaching'],
-      logo: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?auto=format&fit=crop&w=120&q=80'
-    },
-    {
-      id: 3,
-      title: 'PRT General Science & STEM',
-      school: 'St. Xavier Global Academy',
-      board: 'ICSE',
-      location: 'Bengaluru, Karnataka',
-      level: 'PRT',
-      subject: 'Science',
-      salary: '₹32,000 - ₹45,000 / mo',
-      experience: '1+ Years',
-      type: 'Full-time',
-      urgent: true,
-      skills: ['Experiential Learning', 'STEM Education', 'Child Psychology'],
-      logo: 'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=120&q=80'
-    },
-    {
-      id: 4,
-      title: 'Academic Coordinator & Head of Pedagogy',
-      school: 'Delhi Heritage Public School',
-      board: 'CBSE',
-      location: 'New Delhi, NCR',
-      level: 'Admin / Head',
-      subject: 'Academic Administration',
-      salary: '₹70,000 - ₹95,000 / mo',
-      experience: '5+ Years',
-      type: 'Full-time',
-      urgent: false,
-      skills: ['NEP 2020', 'Curriculum Design', 'Faculty Mentoring', 'TET/CTET'],
-      logo: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=120&q=80'
-    }
-  ];
+  const [liveJobs, setLiveJobs] = useState([]);
+  const [liveSchools, setLiveSchools] = useState([]);
 
-  // Top Partner Schools
-  const partnerSchools = [
+  useEffect(() => {
+    api.getJobs().then(res => setLiveJobs(res.jobs || [])).catch(() => setLiveJobs([]));
+    api.getSchools().then(res => setLiveSchools(res.schools || [])).catch(() => setLiveSchools([]));
+  }, []);
+
+  // Top Partner Schools (Dynamic from database)
+  const partnerSchools = liveSchools.length > 0 ? liveSchools.map(s => ({
+    name: s.school_name,
+    board: `${s.board || 'CBSE'} Board`,
+    city: [s.city, s.district, s.state].filter(Boolean).join(', ') || 'Kushinagar, UP',
+    type: 'Co-Educational Senior Sec',
+    image: s.logo_path || 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=400&q=80',
+    vacancies: Number(s.vacancy_count) || 0
+  })) : [
     {
-      name: 'Paradox International School',
+      name: 'SD Public school babhanauli kushinagar',
       board: 'CBSE Affiliated',
-      city: 'Mumbai, MH',
-      type: 'K-12 Day & Boarding',
-      image: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=400&q=80',
-      vacancies: 3
-    },
-    {
-      name: 'Daffodils World School',
-      board: 'CBSE Board',
-      city: 'Sikar, RJ',
+      city: 'Babhanauli, Kushinagar, UP',
       type: 'Co-Educational Senior Sec',
-      image: 'https://images.unsplash.com/photo-1546410531-bb4caa6b424d?auto=format&fit=crop&w=400&q=80',
-      vacancies: 2
-    },
-    {
-      name: 'St. Xavier Global Academy',
-      board: 'ICSE & Cambridge',
-      city: 'Bengaluru, KA',
-      type: 'International STEM School',
-      image: 'https://images.unsplash.com/photo-1509062522246-3755977927d7?auto=format&fit=crop&w=400&q=80',
-      vacancies: 4
-    },
-    {
-      name: 'Heritage Valley Public School',
-      board: 'CBSE Board',
-      city: 'Gurugram, HR',
-      type: 'Progressive K-12 Campus',
-      image: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=400&q=80',
-      vacancies: 1
+      image: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=400&q=80',
+      vacancies: 0
     }
   ];
 
@@ -764,88 +692,95 @@ export default function HomePage({
               onClick={onNavigateToJobs}
               className="inline-flex items-center gap-1.5 text-sm font-bold text-indigo-600 hover:text-indigo-800 transition group cursor-pointer"
             >
-              <span>View All 40+ Vacancies</span>
+              <span>Browse Job Portal</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition transform" />
             </button>
           </div>
 
           {/* Job Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {featuredJobs.map((job) => (
-              <div
-                key={job.id}
-                className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs hover:shadow-xl hover:border-indigo-300 transition duration-300 flex flex-col justify-between space-y-4"
-              >
-                <div>
-                  {/* Top row: School & badges */}
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={job.logo}
-                        alt={job.school}
-                        className="w-12 h-12 rounded-xl object-cover border border-slate-100"
-                      />
-                      <div>
-                        <h4 className="text-base font-bold text-slate-900 leading-snug">
-                          {job.title}
-                        </h4>
-                        <div className="text-xs text-slate-500 font-medium mt-0.5">
-                          {job.school} • <span className="font-semibold text-indigo-600">{job.board}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-bold text-xs">
-                      {job.level}
-                    </span>
-                  </div>
-
-                  {/* Meta details */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-100 text-xs text-slate-600">
-                    <div className="flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{job.location}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
-                      <span>Exp: {job.experience}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 font-semibold text-slate-800">
-                      <span>{job.salary}</span>
-                    </div>
-                  </div>
-
-                  {/* Skills Pills */}
-                  <div className="flex flex-wrap gap-1.5 mt-3">
-                    {job.skills.map((skill, idx) => (
-                      <span
-                        key={idx}
-                        className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[11px] rounded-md font-medium"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Bottom Row: AI match prompt and Apply button */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <div className="text-[11px] text-slate-500 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-indigo-600" />
-                    <span>AI compatibility verified</span>
-                  </div>
-
+            {liveJobs.length === 0 ? (
+              <div className="col-span-full bg-white rounded-3xl p-10 border border-slate-200/90 text-center space-y-3 shadow-xs">
+                <Briefcase className="w-10 h-10 text-slate-300 mx-auto" />
+                <h3 className="text-base font-bold text-slate-800">No Open Vacancies Currently</h3>
+                <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                  All previous dummy vacancies have been wiped. When verified partner schools post new teaching positions, they will appear here in real time.
+                </p>
+                <div className="pt-2">
                   <button
                     type="button"
-                    onClick={() => handleApplyClick(job)}
-                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1 cursor-pointer"
+                    onClick={onNavigateToSchools}
+                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs"
                   >
-                    <span>Apply Direct</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    Browse Partner Schools
                   </button>
                 </div>
               </div>
-            ))}
+            ) : (
+              liveJobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="bg-white rounded-3xl p-6 border border-slate-200/90 shadow-xs hover:shadow-xl hover:border-indigo-300 transition duration-300 flex flex-col justify-between space-y-4"
+                >
+                  <div>
+                    {/* Top row: School & badges */}
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={job.logo_path || 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=120&q=80'}
+                          alt={job.school_name}
+                          className="w-12 h-12 rounded-xl object-cover border border-slate-100"
+                        />
+                        <div>
+                          <h4 className="text-base font-bold text-slate-900 leading-snug">
+                            {job.title}
+                          </h4>
+                          <div className="text-xs text-slate-500 font-medium mt-0.5">
+                            {job.school_name} • <span className="font-semibold text-indigo-600">{job.subject}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <span className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-bold text-xs">
+                        {job.post_level}
+                      </span>
+                    </div>
+
+                    {/* Meta details */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-4 pt-3 border-t border-slate-100 text-xs text-slate-600">
+                      <div className="flex items-center gap-1.5">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{[job.city, job.state].filter(Boolean).join(', ')}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Exp: {job.experience_required} Yrs</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 font-semibold text-slate-800">
+                        <span>₹{Number(job.min_salary).toLocaleString('en-IN')} - ₹{Number(job.max_salary).toLocaleString('en-IN')}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bottom Row */}
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-indigo-600" />
+                      <span>Direct Recruitment</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleApplyClick(job)}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>Apply Direct</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           <div className="mt-8 text-center">
@@ -999,7 +934,7 @@ export default function HomePage({
                 ))}
               </div>
               <p className="text-xs sm:text-sm text-slate-700 italic leading-relaxed">
-                "Within 3 days of uploading my resume and having it analyzed by the AI, I was called directly by the principal of Paradox International. No commission cuts, transparent package!"
+                "Within 3 days of uploading my resume and having it analyzed by the AI, I was called directly by the principal of SD Public School. No commission cuts, transparent package!"
               </p>
               <div className="flex items-center gap-3 pt-2 border-t border-slate-200/60">
                 <img
@@ -1030,8 +965,8 @@ export default function HomePage({
                   className="w-10 h-10 rounded-full object-cover"
                 />
                 <div>
-                  <div className="text-xs font-bold text-slate-900">Dr. Ananya Sen</div>
-                  <div className="text-[11px] text-slate-500">Principal, Daffodils World School</div>
+                  <div className="text-xs font-bold text-slate-900">Principal</div>
+                  <div className="text-[11px] text-slate-500">SD Public School, Babhanauli Kushinagar</div>
                 </div>
               </div>
             </div>

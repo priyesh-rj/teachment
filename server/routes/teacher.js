@@ -591,6 +591,34 @@ router.get('/applied', async (req, res) => {
   }
 });
 
+// 5. PUBLIC PARTNER SCHOOLS DIRECTORY
+router.get('/schools', async (req, res) => {
+  try {
+    const schoolsRes = await db.query(
+      `SELECT 
+        s.id,
+        s.school_name,
+        s.principal_name,
+        s.board,
+        s.about_text,
+        s.state,
+        s.district,
+        s.city,
+        s.address,
+        COALESCE(s.logo_path, u.avatar) as logo_path,
+        (SELECT COUNT(*) FROM jobs WHERE school_id = s.id AND status = 'Open') as vacancy_count
+       FROM school_profiles s
+       JOIN users u ON s.user_id = u.id
+       ORDER BY s.id ASC`
+    );
+
+    res.json({ schools: schoolsRes.rows });
+  } catch (err) {
+    console.error('Fetch schools error:', err);
+    res.status(500).json({ error: 'Failed to retrieve schools directory.' });
+  }
+});
+
 module.exports = router;
 
 
