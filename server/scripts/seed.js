@@ -142,15 +142,15 @@ startxref
   }
 
   // 2. Create Teachers
-  // Teacher 1: Match screenshot (Js-teachment Js-01)
+  // Teacher 1: Primary Demo Teacher (Pradeep Kumar Madheshia)
   const teacher1User = await db.query(
     `INSERT INTO users (name, email, password_hash, phone, role, avatar)
      VALUES ($1, $2, $3, $4, 'teacher', $5)`,
     [
-      'Js-teachment Js-01',
+      'Pradeep Kumar Madheshia',
       'teacher@teachment.com',
       passwordHash,
-      '9335893077',
+      '8375955572',
       'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80'
     ]
   );
@@ -164,20 +164,20 @@ startxref
     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
     [
       teacher1UserId,
-      'Maths',
-      'Pgt',
-      'Tech',
-      'Si',
-      0, // Fresher
+      'Science & Maths',
+      'TGT',
+      'CTET, UPTET, Diploma in Elementary Education, Central Board of Secondary Education',
+      'CBSE',
+      7,
       'English',
-      'Uk',
-      'Mumbai',
-      'Mumbai',
-      '225001',
+      'Uttar Pradesh',
+      'Kushinagar',
+      'Lucknow',
+      '274304',
       'Male',
       '/uploads/resumes/sample_resume.pdf',
-      'Calculus, Algebra, Pedagogy, Smart Classroom, CBSE Curriculum',
-      100
+      'TGT, Science & Maths, Classroom Management, Student Evaluation, Online Teaching Tools, Decision Making, Critical Thinking, Verbal Communication, Remote Learning, Physics, Chemistry, Mathematics, Maths, Science, Project Planning, Individualized Education Plans',
+      92
     ]
   );
   const teacher1ProfId = teacher1Prof.rows[0]?.id || teacher1Prof.lastID;

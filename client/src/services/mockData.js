@@ -6,10 +6,10 @@ export const DEMO_TEACHER = {
   token: 'demo-teacher-token-2026',
   user: {
     id: 1,
-    name: 'Js-teachment Js-01',
+    name: 'Pradeep Kumar Madheshia',
     email: 'teacher@teachment.com',
     role: 'teacher',
-    phone: '9335893077',
+    phone: '8375955572',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
     rating: 4.9,
     status: 'active'
@@ -17,20 +17,20 @@ export const DEMO_TEACHER = {
   profile: {
     id: 1,
     user_id: 1,
-    subject: 'Maths',
-    post: 'PGT',
-    qualifications: 'B.Ed, M.Sc Mathematics, CTET Qualified',
+    subject: 'Science & Maths',
+    post: 'TGT',
+    qualifications: 'CTET, UPTET, Diploma in Elementary Education, Central Board of Secondary Education',
     syllabus: 'CBSE',
-    experience_years: 3,
+    experience_years: 7,
     medium: 'English',
-    state: 'Maharashtra',
-    district: 'Mumbai',
-    city: 'Mumbai',
-    pin_code: '400050',
+    state: 'Uttar Pradesh',
+    district: 'Kushinagar',
+    city: 'Lucknow',
+    pin_code: '274304',
     gender: 'Male',
     resume_path: '/uploads/resumes/sample_resume.pdf',
-    parsed_skills: 'Calculus, Algebra, Pedagogy, Smart Classroom, CBSE Curriculum',
-    profile_completion: 100,
+    parsed_skills: 'TGT, Science & Maths, Classroom Management, Student Evaluation, Online Teaching Tools, Decision Making, Critical Thinking, Verbal Communication, Remote Learning, Physics, Chemistry, Mathematics, Maths, Science, Project Planning, Individualized Education Plans',
+    profile_completion: 92,
     expected_salary: 35000
   }
 };
@@ -179,20 +179,20 @@ export const INITIAL_TEACHERS = [
   {
     id: 1,
     user_id: 1,
-    name: 'Js-teachment Js-01',
+    name: 'Pradeep Kumar Madheshia',
     email: 'teacher@teachment.com',
-    phone: '9335893077',
+    phone: '8375955572',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-    subject: 'Maths',
-    post: 'PGT',
-    qualifications: 'B.Ed, M.Sc Mathematics, CTET Qualified',
+    subject: 'Science & Maths',
+    post: 'TGT',
+    qualifications: 'CTET, UPTET, Diploma in Elementary Education, Central Board of Secondary Education',
     syllabus: 'CBSE',
-    experience_years: 3,
+    experience_years: 7,
     medium: 'English',
-    city: 'Mumbai',
-    state: 'Maharashtra',
+    city: 'Lucknow',
+    state: 'Uttar Pradesh',
     rating: 4.9,
-    parsed_skills: 'Calculus, Algebra, Pedagogy, Smart Classroom, CBSE Curriculum',
+    parsed_skills: 'TGT, Science & Maths, Classroom Management, Student Evaluation, Online Teaching Tools, Decision Making, Critical Thinking, Verbal Communication, Remote Learning, Physics, Chemistry, Mathematics, Maths, Science, Project Planning, Individualized Education Plans',
     resume_path: '/uploads/resumes/sample_resume.pdf'
   },
   {
@@ -319,13 +319,13 @@ export const INITIAL_APPLICANTS = [
   {
     id: 3,
     job_id: 4,
-    name: 'Js-teachment Js-01',
+    name: 'Pradeep Kumar Madheshia',
     email: 'teacher@teachment.com',
-    phone: '9335893077',
+    phone: '8375955572',
     avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-    subject: 'Maths',
-    post: 'PGT',
-    experience_years: 3,
+    subject: 'Science & Maths',
+    post: 'TGT',
+    experience_years: 7,
     ai_match_score: 98.4,
     status: 'Interview Scheduled',
     applied_at: new Date().toISOString(),
@@ -337,7 +337,26 @@ export const INITIAL_APPLICANTS = [
 export function getStoredSession() {
   try {
     const raw = localStorage.getItem('teachment_mock_session');
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const session = JSON.parse(raw);
+
+    // Auto-migrate stale cached demo teacher from earlier visits on Vercel
+    if (
+      session?.user?.email === 'teacher@teachment.com' &&
+      (session.user.name === 'Js-teachment Js-01' || !session.profile?.city || session.profile?.city === 'Mumbai' || session.profile?.subject === 'Maths')
+    ) {
+      const updated = JSON.parse(JSON.stringify(DEMO_TEACHER));
+      // preserve user uploaded resume if any
+      if (session.profile?.resume_path && !session.profile.resume_path.includes('sample_resume.pdf')) {
+        updated.profile.resume_path = session.profile.resume_path;
+        if (session.profile.parsed_skills) updated.profile.parsed_skills = session.profile.parsed_skills;
+        if (session.profile.resume_filename) updated.profile.resume_filename = session.profile.resume_filename;
+      }
+      saveStoredSession(updated);
+      return updated;
+    }
+
+    return session;
   } catch {
     return null;
   }
