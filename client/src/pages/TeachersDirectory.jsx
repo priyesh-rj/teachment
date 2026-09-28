@@ -499,7 +499,13 @@ export default function TeachersDirectory({ onOpenAuthModal }) {
 
                 {selectedTeacher.resume_path ? (
                   <a
-                    href={`${UPLOAD_BASE_URL}${selectedTeacher.resume_path}`}
+                    href={
+                      selectedTeacher.resume_path.startsWith('data:') ||
+                      selectedTeacher.resume_path.startsWith('blob:') ||
+                      selectedTeacher.resume_path.startsWith('http')
+                        ? selectedTeacher.resume_path
+                        : `${UPLOAD_BASE_URL}${selectedTeacher.resume_path}`
+                    }
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs"

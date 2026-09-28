@@ -129,7 +129,7 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
   };
 
   const handleResumeUpload = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     if (file.type !== 'application/pdf' && !file.name.endsWith('.pdf')) {
@@ -143,13 +143,42 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
 
     try {
       const res = await api.uploadResume(formData);
-      alert('✅ Resume uploaded! AI parsed skills: ' + (res.parsedSkills || 'Skills extracted'));
+
+      // Immediately sync local profileData and editForm with extracted info
+      if (res.profile) {
+        setProfileData((prev) => ({
+          ...prev,
+          profile: res.profile,
+          user: res.user || prev?.user,
+        }));
+        setEditForm((prev) => ({
+          ...prev,
+          ...res.profile,
+          name: res.user?.name || prev.name,
+          phone: res.user?.phone || prev.phone,
+          avatar: res.user?.avatar || prev.avatar,
+        }));
+      }
+
+      const skillsMsg = res.parsedSkills || res.profile?.parsed_skills || 'Pedagogical skills indexed';
+      const expMsg = res.profile?.experience_years ? `${res.profile.experience_years}+ Years Experience` : '';
+      const subjMsg = res.profile?.subject ? `Subject: ${res.profile.subject}` : '';
+      const summaryExtra = [subjMsg, expMsg].filter(Boolean).join(' • ');
+
+      alert(
+        `🎉 Resume Uploaded & AI Indexed Successfully!\n\n` +
+        `Candidate Skills Detected:\n${skillsMsg}\n\n` +
+        (summaryExtra ? `${summaryExtra}\n\n` : '') +
+        `Your profile and AI match score have been automatically updated!`
+      );
+
       await fetchProfile();
       await refreshUser();
     } catch (err) {
       alert('Upload failed: ' + err.message);
     } finally {
       setUploading(false);
+      e.target.value = '';
     }
   };
 
@@ -258,7 +287,20 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
   const p = profileData?.profile || {};
   const u = profileData?.user || user || {};
   const completion = p.profile_completion || 100;
-  const resumeUrl = p.resume_path ? `${UPLOAD_BASE_URL}${p.resume_path}` : null;
+  
+  const getResumeUrl = (path) => {
+    if (!path) return null;
+    if (
+      path.startsWith('data:') ||
+      path.startsWith('blob:') ||
+      path.startsWith('http://') ||
+      path.startsWith('https://')
+    ) {
+      return path;
+    }
+    return `${UPLOAD_BASE_URL}${path}`;
+  };
+  const resumeUrl = getResumeUrl(p.resume_path);
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
@@ -396,7 +438,7 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-slate-500 uppercase">Subject</div>
-                  <div className="text-base font-bold text-slate-800">{p.subject || 'Maths'}</div>
+                  <div className="text-base font-bold text-slate-800">{p.subject || 'Not Specified'}</div>
                 </div>
               </div>
 
@@ -407,7 +449,7 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-slate-500 uppercase">Post</div>
-                  <div className="text-base font-bold text-slate-800">{p.post || 'Pgt'}</div>
+                  <div className="text-base font-bold text-slate-800">{p.post || 'Not Specified'}</div>
                 </div>
               </div>
 
@@ -418,7 +460,7 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-slate-500 uppercase">Qualifications</div>
-                  <div className="text-base font-bold text-slate-800">{p.qualifications || 'Tech'}</div>
+                  <div className="text-base font-bold text-slate-800">{p.qualifications || 'Pending Upload'}</div>
                 </div>
               </div>
 
@@ -429,7 +471,7 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-slate-500 uppercase">Syllabus</div>
-                  <div className="text-base font-bold text-slate-800">{p.syllabus || 'Si'}</div>
+                  <div className="text-base font-bold text-slate-800">{p.syllabus || 'CBSE'}</div>
                 </div>
               </div>
 
@@ -441,7 +483,7 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
                 <div>
                   <div className="text-xs font-semibold text-slate-500 uppercase">Experience</div>
                   <div className="text-base font-bold text-slate-800">
-                    {p.experience_years > 0 ? `${p.experience_years}+ Years` : 'Fresher'}
+                    {p.experience_years > 0 ? `${p.experience_years}+ Years` : (p.experience_years === 0 ? 'Fresher' : 'Not Specified')}
                   </div>
                 </div>
               </div>
@@ -464,7 +506,7 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-slate-500 uppercase">State</div>
-                  <div className="text-base font-bold text-slate-800">{p.state || 'Uk'}</div>
+                  <div className="text-base font-bold text-slate-800">{p.state || 'Not Specified'}</div>
                 </div>
               </div>
 
@@ -475,7 +517,7 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-slate-500 uppercase">District</div>
-                  <div className="text-base font-bold text-slate-800">{p.district || 'Mumbai'}</div>
+                  <div className="text-base font-bold text-slate-800">{p.district || 'Not Specified'}</div>
                 </div>
               </div>
 
@@ -486,7 +528,7 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-slate-500 uppercase">City</div>
-                  <div className="text-base font-bold text-slate-800">{p.city || 'Mumbai'}</div>
+                  <div className="text-base font-bold text-slate-800">{p.city || 'Not Specified'}</div>
                 </div>
               </div>
 
@@ -497,7 +539,7 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-slate-500 uppercase">PIN</div>
-                  <div className="text-base font-bold text-slate-800">{p.pin_code || '225001'}</div>
+                  <div className="text-base font-bold text-slate-800">{p.pin_code || 'Not Specified'}</div>
                 </div>
               </div>
 
@@ -508,7 +550,7 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-slate-500 uppercase">Gender</div>
-                  <div className="text-base font-bold text-slate-800">{p.gender || 'Male'}</div>
+                  <div className="text-base font-bold text-slate-800">{p.gender || 'Not Specified'}</div>
                 </div>
               </div>
             </div>
@@ -538,20 +580,31 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
         {/* TAB 2: Resume Management (Screenshot 4) */}
         {activeTab === 'Resume' && (
           <div className="mt-8 space-y-6">
-            <div className="flex flex-wrap justify-between items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div className="flex flex-wrap justify-between items-center gap-4 bg-slate-50 p-4 sm:p-5 rounded-xl border border-slate-200">
               <div>
-                <h3 className="text-base font-bold text-slate-800">Candidate Resume Document</h3>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-base font-bold text-slate-800">Candidate Resume Document</h3>
+                  {resumeUrl ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full border border-emerald-200">
+                      ✓ AI Indexed
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full border border-amber-200">
+                      Pending Upload
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-slate-500">
-                  PDF uploaded directly into AI Microservice for dynamic match indexation.
+                  {p.resume_filename ? `Current File: ${p.resume_filename}` : 'PDF uploaded directly into AI Microservice for dynamic match indexation.'}
                 </p>
               </div>
               <div className="flex items-center gap-3">
-                <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition shadow-sm">
+                <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition shadow-sm">
                   <Upload className="w-4 h-4" />
-                  <span>{uploading ? 'Parsing AI Index...' : 'Upload Resume'}</span>
+                  <span>{uploading ? 'Parsing AI Index...' : (resumeUrl ? 'Re-upload Resume' : 'Upload Resume')}</span>
                   <input
                     type="file"
-                    accept=".pdf"
+                    accept=".pdf,application/pdf"
                     onChange={handleResumeUpload}
                     disabled={uploading}
                     className="hidden"
@@ -561,52 +614,88 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
                 {resumeUrl && (
                   <a
                     href={resumeUrl}
-                    download="Teacher_Resume.pdf"
+                    download={p.resume_filename || "Teacher_Resume.pdf"}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-sm font-semibold transition"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-lg text-sm font-semibold transition shadow-xs"
                   >
                     <Download className="w-4 h-4" />
-                    <span>Download Resume</span>
+                    <span>Download PDF</span>
                   </a>
                 )}
               </div>
             </div>
 
+            {/* AI Skills Extracted Banner inside Resume Tab */}
+            {p.parsed_skills && (
+              <div className="p-4 bg-indigo-50/70 rounded-xl border border-indigo-100">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="flex items-center gap-1.5 text-xs font-bold text-indigo-900">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>AI Extracted Skills from Resume</span>
+                  </span>
+                  <span className="text-[11px] text-indigo-600 font-medium">
+                    {p.subject ? `Subject: ${p.subject}` : ''} {p.experience_years ? `• ${p.experience_years}+ Yrs` : ''}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {p.parsed_skills.split(',').map((skill, i) => (
+                    <span
+                      key={i}
+                      className="px-2.5 py-1 bg-white text-indigo-700 text-xs font-medium rounded-md shadow-2xs border border-indigo-200"
+                    >
+                      {skill.trim()}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Inline PDF Viewer (Screenshot 4) */}
             <div className="bg-slate-800 rounded-xl overflow-hidden shadow-inner border border-slate-700">
-              <div className="bg-slate-900 text-slate-300 px-4 py-2 text-xs flex justify-between items-center">
+              <div className="bg-slate-900 text-slate-300 px-4 py-2.5 text-xs flex justify-between items-center border-b border-slate-700/60">
                 <span className="flex items-center gap-2">
                   <FileText className="w-4 h-4 text-indigo-400" />
-                  <span>Integrated PDF Document Viewer</span>
+                  <span className="font-medium">Integrated PDF Document Viewer</span>
                 </span>
                 {resumeUrl && (
                   <a
                     href={resumeUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-indigo-400 hover:text-indigo-300 flex items-center gap-1"
+                    className="text-indigo-300 hover:text-white flex items-center gap-1 bg-slate-800 px-2 py-1 rounded border border-slate-700 transition"
                   >
-                    <span>Open External</span>
+                    <span>Open Full Document</span>
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 )}
               </div>
 
               {resumeUrl ? (
-                <div className="w-full h-[600px] bg-slate-100">
+                <div className="w-full h-[650px] bg-slate-100 relative">
                   <iframe
                     src={resumeUrl}
                     title="Teacher Resume Viewer"
                     className="w-full h-full border-0"
                   />
+                  <div className="absolute bottom-2 right-2 z-10 bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded text-[11px] text-slate-600 border border-slate-200 shadow-xs flex items-center gap-2">
+                    <span>Previewing uploaded PDF</span>
+                    <a
+                      href={resumeUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-indigo-600 hover:underline font-bold"
+                    >
+                      Direct Link
+                    </a>
+                  </div>
                 </div>
               ) : (
                 <div className="p-16 text-center text-slate-400 bg-slate-850">
                   <FileText className="w-12 h-12 mx-auto mb-3 text-slate-500 opacity-60" />
                   <p className="text-base font-semibold text-slate-200">No Resume Uploaded Yet</p>
-                  <p className="text-sm mt-1">
-                    Upload your PDF resume above to preview it here and unlock AI matching.
+                  <p className="text-sm mt-1 max-w-md mx-auto text-slate-400">
+                    Upload your candidate resume in PDF format above to preview your document and activate AI-powered vacancy matching.
                   </p>
                 </div>
               )}

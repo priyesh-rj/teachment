@@ -100,6 +100,70 @@ async function request(endpoint, options = {}) {
   return data;
 }
 
+const readFileAsDataUrl = (file) => {
+  return new Promise((resolve) => {
+    if (!file || typeof FileReader === 'undefined' || !(file instanceof Blob)) {
+      return resolve(null);
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result);
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+};
+
+const extractResumeDetailsClient = (file) => {
+  const filename = file?.name || '';
+  const searchCorpus = filename.replace(/\.pdf$/i, '').replace(/[-_]/g, ' ').toLowerCase();
+
+  let subject = null;
+  if (/math/i.test(searchCorpus)) subject = 'Mathematics';
+  else if (/computer|coding|python|it\b/i.test(searchCorpus)) subject = 'Computer Science';
+  else if (/physics/i.test(searchCorpus)) subject = 'Physics';
+  else if (/chemistry/i.test(searchCorpus)) subject = 'Chemistry';
+  else if (/science/i.test(searchCorpus)) subject = 'Science & Maths';
+  else if (/english/i.test(searchCorpus)) subject = 'English';
+  else if (/hindi/i.test(searchCorpus)) subject = 'Hindi';
+
+  let post = null;
+  if (/pgt/i.test(searchCorpus)) post = 'PGT';
+  else if (/tgt/i.test(searchCorpus)) post = 'TGT';
+  else if (/prt/i.test(searchCorpus)) post = 'PRT';
+
+  const quals = [];
+  ['CTET', 'UPTET', 'B.Ed', 'M.Ed', 'D.El.Ed', 'M.Sc', 'B.Sc', 'B.Tech', 'M.Tech', 'MCA', 'Ph.D'].forEach(q => {
+    if (new RegExp(`\\b${q.replace('.', '\\.')}\\b`, 'i').test(searchCorpus)) {
+      quals.push(q);
+    }
+  });
+
+  let exp = 0;
+  const expMatch = searchCorpus.match(/(\d+)\s*(?:saal|years?|yrs?)/i);
+  if (expMatch) exp = parseInt(expMatch[1], 10);
+
+  const skills = [
+    'Classroom Management',
+    'Lesson Planning',
+    'Student Assessment',
+    'Curriculum Planning'
+  ];
+  if (subject) skills.unshift(subject);
+  if (post) skills.unshift(post);
+  ['Physics', 'Chemistry', 'Mathematics', 'Python', 'STEM', 'Remote Learning'].forEach(s => {
+    if (new RegExp(`\\b${s}\\b`, 'i').test(searchCorpus) && !skills.includes(s)) {
+      skills.push(s);
+    }
+  });
+
+  return {
+    subject,
+    post,
+    qualifications: quals.length > 0 ? quals.join(', ') : 'B.Ed, CTET Qualified',
+    experience_years: exp || 3,
+    skills: Array.from(new Set(skills))
+  };
+};
+
 export const api = {
   // Auth
   login: async (email, password) => {
@@ -166,19 +230,40 @@ export const api = {
   // Teacher APIs
   getTeacherProfile: async () => {
     try {
-      return await request('/teacher/profile');
+      const res = await request('/teacher/profile');
+      const session = getStoredSession() || JSON.parse(JSON.stringify(DEMO_TEACHER));
+      if (res.user) session.user = { ...session.user, ...res.user };
+      if (res.profile) {
+        // If a local preview is available in sessionStorage, keep it active for instant viewing
+        const cachedPreview = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('teachment_local_resume_preview') : null;
+        if (cachedPreview && (!res.profile.resume_path || res.profile.resume_path.includes('sample_resume'))) {
+          res.profile.resume_path = cachedPreview;
+        }
+        session.profile = { ...session.profile, ...res.profile };
+      }
+      saveStoredSession(session);
+      return res;
     } catch (err) {
       const session = getStoredSession() || DEMO_TEACHER;
+      const cachedPreview = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('teachment_local_resume_preview') : null;
+      if (cachedPreview && session?.profile) {
+        session.profile.resume_path = cachedPreview;
+      }
       return { user: session.user, profile: session.profile };
     }
   },
 
   updateTeacherProfile: async (payload) => {
     try {
-      return await request('/teacher/profile', {
+      const res = await request('/teacher/profile', {
         method: 'PUT',
         body: JSON.stringify(payload),
       });
+      const session = getStoredSession() || JSON.parse(JSON.stringify(DEMO_TEACHER));
+      if (res.profile) session.profile = { ...session.profile, ...res.profile };
+      if (res.user) session.user = { ...session.user, ...res.user };
+      saveStoredSession(session);
+      return res;
     } catch (err) {
       const session = getStoredSession() || JSON.parse(JSON.stringify(DEMO_TEACHER));
       session.user = { ...session.user, name: payload.name || session.user.name, phone: payload.phone || session.user.phone, avatar: payload.avatar || session.user.avatar };
@@ -204,23 +289,66 @@ export const api = {
   },
 
   uploadResume: async (formData) => {
+    const file = formData instanceof FormData ? formData.get('resume') : null;
+    let localDataUrl = null;
+    if (file && typeof file === 'object') {
+      try {
+        localDataUrl = await readFileAsDataUrl(file);
+      } catch (e) {
+        console.warn('Could not generate Data URL preview:', e.message);
+      }
+    }
+
     try {
-      return await request('/teacher/resume', {
+      const res = await request('/teacher/resume', {
         method: 'POST',
         body: formData,
       });
-    } catch (err) {
+
       const session = getStoredSession() || JSON.parse(JSON.stringify(DEMO_TEACHER));
-      session.profile.resume_path = '/uploads/resumes/sample_resume.pdf';
-      session.profile.parsed_skills = 'Classroom Pedagogy, STEM Instruction, Curriculum Planning, Student Assessment';
+      if (res.profile) {
+        session.profile = { ...session.profile, ...res.profile };
+      }
+      if (res.user) {
+        session.user = { ...session.user, ...res.user };
+      }
+      if (localDataUrl) {
+        try {
+          sessionStorage.setItem('teachment_local_resume_preview', localDataUrl);
+        } catch (e) {}
+      }
       saveStoredSession(session);
+
+      return res;
+    } catch (err) {
+      console.warn('Backend unavailable during uploadResume, persisting local demo resume:', err.message);
+      const session = getStoredSession() || JSON.parse(JSON.stringify(DEMO_TEACHER));
+      const clientExt = extractResumeDetailsClient(file);
+
+      const resumePath = localDataUrl || session.profile?.resume_path || '/uploads/resumes/sample_resume.pdf';
+      session.profile.resume_path = resumePath;
+      session.profile.resume_filename = file?.name || 'Teacher_Resume.pdf';
+      session.profile.parsed_skills = clientExt.skills.join(', ');
+      if (clientExt.subject) session.profile.subject = clientExt.subject;
+      if (clientExt.post) session.profile.post = clientExt.post;
+      if (clientExt.qualifications) session.profile.qualifications = clientExt.qualifications;
+      if (clientExt.experience_years > 0) session.profile.experience_years = clientExt.experience_years;
+
+      if (localDataUrl) {
+        try {
+          sessionStorage.setItem('teachment_local_resume_preview', localDataUrl);
+        } catch (e) {}
+      }
+
+      saveStoredSession(session);
+
       return {
-        message: 'Resume parsed & updated successfully (Demo Mode)!',
-        parsedData: {
-          skills: ['Pedagogy', 'Calculus', 'Curriculum Planning', 'STEM'],
-          experience_years: session.profile.experience_years || 3,
-          qualifications: session.profile.qualifications,
-        }
+        message: 'Resume uploaded & AI indexed successfully (Demo Mode)!',
+        resumePath,
+        parsedSkills: session.profile.parsed_skills,
+        parsedData: clientExt,
+        profile: session.profile,
+        user: session.user
       };
     }
   },

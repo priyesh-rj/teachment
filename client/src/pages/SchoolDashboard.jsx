@@ -889,7 +889,13 @@ export default function SchoolDashboard({ isPostModalOpen, setIsPostModalOpen })
 
                       {cand.resume_path && (
                         <a
-                          href={`${UPLOAD_BASE_URL}${cand.resume_path}`}
+                          href={
+                            cand.resume_path.startsWith('data:') ||
+                            cand.resume_path.startsWith('blob:') ||
+                            cand.resume_path.startsWith('http')
+                              ? cand.resume_path
+                              : `${UPLOAD_BASE_URL}${cand.resume_path}`
+                          }
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 underline"

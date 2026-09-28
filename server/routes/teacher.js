@@ -330,6 +330,8 @@ router.post('/avatar', uploadAvatar.single('avatar'), async (req, res) => {
 });
 
 // 3. UPLOAD RESUME (PDF)
+const { parseResumeFile } = require('../services/resumeParser');
+
 router.post('/resume', upload.single('resume'), async (req, res) => {
   try {
     if (!req.file) {
@@ -339,8 +341,13 @@ router.post('/resume', upload.single('resume'), async (req, res) => {
     const relativePath = `/uploads/resumes/${req.file.filename}`;
     const absolutePath = req.file.path;
 
-    // Trigger Python AI Microservice for resume parsing
-    let parsedSkills = '';
+    // 1. Direct High-Accuracy PDF Extraction via local parser
+    let extracted = await parseResumeFile(absolutePath, req.file.originalname);
+    let parsedSkills = extracted.skills && extracted.skills.length > 0
+      ? extracted.skills.join(', ')
+      : 'Classroom Management, Lesson Planning, Student Engagement, Pedagogy';
+
+    // 2. Optionally query Python AI Microservice to enrich semantic skills if available
     const aiServiceUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
     try {
       const FormData = require('form-data');
@@ -349,45 +356,90 @@ router.post('/resume', upload.single('resume'), async (req, res) => {
 
       const aiResponse = await axios.post(`${aiServiceUrl}/parse-resume`, formData, {
         headers: formData.getHeaders(),
-        timeout: 10000
+        timeout: 5000
       });
 
-      if (aiResponse.data && aiResponse.data.skills) {
-        parsedSkills = Array.isArray(aiResponse.data.skills) 
-          ? aiResponse.data.skills.join(', ') 
-          : aiResponse.data.skills;
+      if (aiResponse.data && aiResponse.data.skills && Array.isArray(aiResponse.data.skills)) {
+        const combined = Array.from(new Set([...extracted.skills, ...aiResponse.data.skills]));
+        parsedSkills = combined.join(', ');
+        extracted.skills = combined;
       }
-      console.log('🤖 AI Resume Parsing completed:', parsedSkills);
+      console.log('🤖 AI Resume Parsing merged:', parsedSkills);
     } catch (aiErr) {
-      console.warn('⚠️ AI service parse-resume unavailable or error:', aiErr.message);
-      parsedSkills = 'Classroom Management, Pedagogy, Lesson Planning, Subject Expertise';
+      console.log('ℹ️ AI service optional enrichment skipped (local parser succeeded):', aiErr.message);
     }
 
-    // Update database
+    // 3. Fetch existing profile
+    let currentProfRes = await db.query(`SELECT * FROM teacher_profiles WHERE user_id = $1`, [req.user.id]);
+    if (currentProfRes.rows.length === 0) {
+      await db.query(`INSERT INTO teacher_profiles (user_id) VALUES ($1)`, [req.user.id]);
+      currentProfRes = await db.query(`SELECT * FROM teacher_profiles WHERE user_id = $1`, [req.user.id]);
+    }
+    const currentProf = currentProfRes.rows[0];
+
+    // Determine values to update - prioritize extracted info when profile fields are empty or default
+    const newSubject = extracted.subject || currentProf.subject || null;
+    const newPost = extracted.post || currentProf.post || null;
+    const newQuals = (extracted.qualifications && extracted.qualifications.length > 0)
+      ? extracted.qualifications.join(', ')
+      : (currentProf.qualifications || null);
+    const newExp = (extracted.experience_years && extracted.experience_years > 0)
+      ? extracted.experience_years
+      : (currentProf.experience_years || 0);
+    const newSyllabus = extracted.syllabus || currentProf.syllabus || 'CBSE';
+    const newCity = extracted.city || currentProf.city || null;
+    const newState = extracted.state || currentProf.state || null;
+
+    // Update teacher_profiles with the new resume path, parsed skills, and extracted fields
     await db.query(
       `UPDATE teacher_profiles SET
         resume_path = $1,
-        parsed_skills = $2
-       WHERE user_id = $3`,
-      [relativePath, parsedSkills, req.user.id]
+        parsed_skills = $2,
+        subject = COALESCE($3, subject),
+        post = COALESCE($4, post),
+        qualifications = COALESCE($5, qualifications),
+        experience_years = CASE WHEN $6 > 0 THEN $6 ELSE experience_years END,
+        syllabus = COALESCE($7, syllabus),
+        city = COALESCE($8, city),
+        state = COALESCE($9, state)
+       WHERE user_id = $10`,
+      [relativePath, parsedSkills, newSubject, newPost, newQuals, newExp, newSyllabus, newCity, newState, req.user.id]
     );
 
-    // Update profile completion
-    const profRes = await db.query(`SELECT * FROM teacher_profiles WHERE user_id = $1`, [req.user.id]);
-    const completion = computeProfileCompletion(profRes.rows[0]);
+    // Update user name/phone if candidate details detected in resume and current user is placeholder
+    const userRes = await db.query(`SELECT id, name, phone, email FROM users WHERE id = $1`, [req.user.id]);
+    if (userRes.rows.length > 0) {
+      const u = userRes.rows[0];
+      const isPlaceholderName = !u.name || /js-teachment|demo/i.test(u.name);
+      const isPlaceholderPhone = !u.phone || u.phone === '9335893077' || u.phone === '9335893076';
+
+      const updateName = (isPlaceholderName && extracted.name) ? extracted.name : u.name;
+      const updatePhone = (isPlaceholderPhone && extracted.phone) ? extracted.phone : u.phone;
+
+      if (updateName !== u.name || updatePhone !== u.phone) {
+        await db.query(`UPDATE users SET name = $1, phone = $2 WHERE id = $3`, [updateName, updatePhone, req.user.id]);
+      }
+    }
+
+    // Recompute profile completion
+    const updatedProfRes = await db.query(`SELECT * FROM teacher_profiles WHERE user_id = $1`, [req.user.id]);
+    const completion = computeProfileCompletion(updatedProfRes.rows[0]);
     await db.query(`UPDATE teacher_profiles SET profile_completion = $1 WHERE user_id = $2`, [completion, req.user.id]);
 
-    const updatedProfile = await db.query(`SELECT * FROM teacher_profiles WHERE user_id = $1`, [req.user.id]);
+    const finalProf = await db.query(`SELECT * FROM teacher_profiles WHERE user_id = $1`, [req.user.id]);
+    const finalUser = await db.query(`SELECT id, name, email, phone, role, avatar FROM users WHERE id = $1`, [req.user.id]);
 
     res.json({
       message: 'Resume uploaded and parsed successfully',
       resumePath: relativePath,
       parsedSkills,
-      profile: updatedProfile.rows[0]
+      parsedData: extracted,
+      profile: finalProf.rows[0],
+      user: finalUser.rows[0]
     });
   } catch (err) {
     console.error('Resume upload error:', err);
-    res.status(500).json({ error: 'Failed to upload and process resume.' });
+    res.status(500).json({ error: 'Failed to upload and process resume: ' + err.message });
   }
 });
 

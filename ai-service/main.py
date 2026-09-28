@@ -102,10 +102,41 @@ async def parse_resume(file: UploadFile = File(...)):
             found_skills.extend(["Classroom Management", "Lesson Planning", "Student Engagement"])
             found_skills = list(dict.fromkeys(found_skills))
 
+        # Extract qualifications
+        quals = ["Ph.D", "M.Ed", "B.Ed", "D.El.Ed", "CTET", "UPTET", "TET", "NET", "SET", "M.Sc", "M.A.", "B.Tech", "M.Tech", "MCA", "B.Sc", "B.A."]
+        detected_quals = [q for q in quals if re.search(r'\b' + re.escape(q.lower()) + r'\b', lower_text)]
+
+        # Extract experience
+        exp_years = 0
+        exp_match = re.search(r'(\d+)\s*(?:\+|plus)?\s*(?:saal|years?|yrs?)', lower_text)
+        if exp_match:
+            try:
+                exp_years = int(exp_match.group(1))
+            except:
+                pass
+
+        # Extract post level
+        detected_post = None
+        for p in ["PGT", "TGT", "PRT", "Headmaster", "Principal"]:
+            if re.search(r'\b' + re.escape(p.lower()) + r'\b', lower_text):
+                detected_post = p
+                break
+
+        # Extract subject
+        detected_subject = None
+        for s in ["Science & Maths", "Mathematics", "Maths", "Physics", "Chemistry", "Biology", "Computer Science", "Information Technology", "English", "Hindi", "Social Studies"]:
+            if re.search(r'\b' + re.escape(s.lower()) + r'\b', lower_text):
+                detected_subject = s
+                break
+
         return {
             "success": True,
             "filename": file.filename,
             "skills": found_skills,
+            "qualifications": detected_quals,
+            "experience_years": exp_years,
+            "post_level": detected_post,
+            "subject": detected_subject,
             "text_preview": extracted_text[:400],
             "char_count": len(extracted_text)
         }

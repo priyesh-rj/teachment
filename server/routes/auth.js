@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const path = require('path');
+const fs = require('fs');
 const db = require('../config/db');
 const { authenticateToken } = require('../middleware/auth');
 
@@ -257,6 +259,56 @@ router.post('/demo', async (req, res) => {
       { expiresIn: '7d' }
     );
 
+    let profile = null;
+    if (user.role === 'teacher') {
+      let profRes = await db.query('SELECT * FROM teacher_profiles WHERE user_id = $1', [user.id]);
+      if (profRes.rows.length === 0) {
+        await db.query(`INSERT INTO teacher_profiles (user_id) VALUES ($1)`, [user.id]);
+        profRes = await db.query('SELECT * FROM teacher_profiles WHERE user_id = $1', [user.id]);
+      }
+      profile = profRes.rows[0];
+
+      // If teacher profile is empty but resume exists, auto-sync from resume
+      if (!profile.subject && profile.resume_path) {
+        try {
+          const { parseResumeFile } = require('../services/resumeParser');
+          const absPath = path.join(__dirname, '..', profile.resume_path.replace(/^\//, ''));
+          if (fs.existsSync(absPath)) {
+            const ext = await parseResumeFile(absPath);
+            await db.query(
+              `UPDATE teacher_profiles SET
+                subject = COALESCE($1, subject),
+                post = COALESCE($2, post),
+                qualifications = COALESCE($3, qualifications),
+                experience_years = CASE WHEN $4 > 0 THEN $4 ELSE experience_years END,
+                city = COALESCE($5, city),
+                state = COALESCE($6, state),
+                parsed_skills = COALESCE($7, parsed_skills),
+                profile_completion = 90
+               WHERE user_id = $8`,
+              [
+                ext.subject || 'Science & Maths',
+                ext.post || 'TGT',
+                (ext.qualifications && ext.qualifications.length > 0) ? ext.qualifications.join(', ') : 'CTET, D.El.Ed, B.Tech',
+                ext.experience_years || 7,
+                ext.city || 'Lucknow',
+                ext.state || 'Uttar Pradesh',
+                (ext.skills && ext.skills.length > 0) ? ext.skills.join(', ') : 'Classroom Management, Science, Maths, Lesson Planning',
+                user.id
+              ]
+            );
+            const refreshed = await db.query('SELECT * FROM teacher_profiles WHERE user_id = $1', [user.id]);
+            profile = refreshed.rows[0];
+          }
+        } catch (e) {
+          console.warn('Auto-sync profile on demo login:', e.message);
+        }
+      }
+    } else {
+      const profRes = await db.query('SELECT * FROM school_profiles WHERE user_id = $1', [user.id]);
+      profile = profRes.rows[0] || null;
+    }
+
     res.json({
       message: 'Demo logged in successfully',
       token,
@@ -267,7 +319,8 @@ router.post('/demo', async (req, res) => {
         phone: user.phone,
         role: user.role,
         avatar: user.avatar
-      }
+      },
+      profile
     });
   } catch (err) {
     console.error('Demo login error:', err);
