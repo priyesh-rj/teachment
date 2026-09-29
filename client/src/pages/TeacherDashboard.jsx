@@ -168,16 +168,17 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
       const summaryExtra = [subjMsg, expMsg].filter(Boolean).join(' • ');
 
       alert(
-        `🎉 Resume Uploaded & AI Indexed Successfully!\n\n` +
+        `🎉 Resume Uploaded & Saved to Database Successfully!\n\n` +
+        `File: ${res.resumeFilename || file.name}\n` +
         `Candidate Skills Detected:\n${skillsMsg}\n\n` +
         (summaryExtra ? `${summaryExtra}\n\n` : '') +
-        `Your profile and AI match score have been automatically updated!`
+        `Your profile has been updated in the database!`
       );
 
       await fetchProfile();
       await refreshUser();
     } catch (err) {
-      alert('Upload failed: ' + err.message);
+      alert('⚠️ Resume Upload Failed: ' + err.message);
     } finally {
       setUploading(false);
       e.target.value = '';

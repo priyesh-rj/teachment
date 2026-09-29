@@ -7,20 +7,8 @@ const axios = require('axios');
 const db = require('../config/db');
 const { authenticateToken, optionalToken, requireRole } = require('../middleware/auth');
 
-// Multer configuration for PDF resumes
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '..', 'uploads', 'resumes');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, 'resume-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Multer configuration for PDF resumes (memoryStorage ensures serverless Vercel & Neon compatibility)
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
   if (file.mimetype === 'application/pdf' || path.extname(file.originalname).toLowerCase() === '.pdf') {
@@ -420,16 +408,33 @@ router.post('/resume', upload.single('resume'), async (req, res) => {
       return res.status(400).json({ error: 'Please upload a valid PDF file.' });
     }
 
-    const relativePath = `/uploads/resumes/${req.file.filename}`;
-    const absolutePath = req.file.path;
-    const originalFilename = req.file.originalname || path.basename(req.file.path);
+    const pdfBuffer = req.file.buffer || (req.file.path ? fs.readFileSync(req.file.path) : null);
+    if (!pdfBuffer) {
+      return res.status(400).json({ error: 'Please upload a valid PDF file.' });
+    }
+
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const originalFilename = req.file.originalname || 'Teacher_Resume.pdf';
+    const ext = path.extname(originalFilename) || '.pdf';
+    const filename = 'resume-' + uniqueSuffix + ext;
+    const relativePath = `/uploads/resumes/${filename}`;
 
     // Read full PDF binary buffer and create dynamic base64 data for resilient database storage
-    const pdfBuffer = fs.readFileSync(absolutePath);
     const resumeBase64 = `data:application/pdf;base64,${pdfBuffer.toString('base64')}`;
 
+    // Save copy to local disk if directory is writable (e.g. localhost)
+    try {
+      const uploadDir = path.join(__dirname, '..', 'uploads', 'resumes');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      fs.writeFileSync(path.join(uploadDir, filename), pdfBuffer);
+    } catch (fsErr) {
+      // Serverless environments with read-only filesystems store PDF in Neon DB directly
+    }
+
     // 1. Direct High-Accuracy PDF Extraction via local parser
-    let extracted = await parseResumeFile(absolutePath, originalFilename);
+    let extracted = await parseResumeFile(pdfBuffer, originalFilename);
     let parsedSkills = extracted.skills && extracted.skills.length > 0
       ? extracted.skills.join(', ')
       : 'Classroom Management, Lesson Planning, Student Engagement, Pedagogy';
@@ -439,11 +444,11 @@ router.post('/resume', upload.single('resume'), async (req, res) => {
     try {
       const FormData = require('form-data');
       const formData = new FormData();
-      formData.append('file', fs.createReadStream(absolutePath), req.file.filename);
+      formData.append('file', pdfBuffer, { filename, contentType: 'application/pdf' });
 
       const aiResponse = await axios.post(`${aiServiceUrl}/parse-resume`, formData, {
         headers: formData.getHeaders(),
-        timeout: 5000
+        timeout: 1200
       });
 
       if (aiResponse.data && aiResponse.data.skills && Array.isArray(aiResponse.data.skills)) {
@@ -453,7 +458,7 @@ router.post('/resume', upload.single('resume'), async (req, res) => {
       }
       console.log('🤖 AI Resume Parsing merged:', parsedSkills);
     } catch (aiErr) {
-      console.log('ℹ️ AI service optional enrichment skipped (local parser succeeded):', aiErr.message);
+      // AI enrichment is optional; high-accuracy local parser succeeded
     }
 
     // 3. Fetch existing profile

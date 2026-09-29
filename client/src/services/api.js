@@ -327,40 +327,14 @@ export const api = {
       }
       saveStoredSession(session);
 
-      return res;
     } catch (err) {
-      console.warn('Backend unavailable during uploadResume, persisting local uploaded resume:', err.message);
-      const session = getStoredSession() || JSON.parse(JSON.stringify(DEMO_TEACHER));
-      const clientExt = extractResumeDetailsClient(file);
-
-      const resumePath = localDataUrl || session.profile?.resume_path || null;
-      session.profile.resume_path = resumePath;
-      session.profile.resume_data = localDataUrl || session.profile?.resume_data || null;
-      session.profile.resume_filename = file?.name || 'Candidate_Resume.pdf';
-      session.profile.parsed_skills = clientExt.skills.join(', ');
-      if (clientExt.subject) session.profile.subject = clientExt.subject;
-      if (clientExt.post) session.profile.post = clientExt.post;
-      if (clientExt.qualifications) session.profile.qualifications = clientExt.qualifications;
-      if (clientExt.experience_years > 0) session.profile.experience_years = clientExt.experience_years;
-
-      if (localDataUrl) {
-        try {
-          sessionStorage.setItem('teachment_local_resume_preview', localDataUrl);
-        } catch (e) {}
-      }
-
-      saveStoredSession(session);
-
-      return {
-        message: 'Resume uploaded & stored successfully!',
-        resumePath,
-        resumeFilename: session.profile.resume_filename,
-        resumeData: session.profile.resume_data,
-        parsedSkills: session.profile.parsed_skills,
-        parsedData: clientExt,
-        profile: session.profile,
-        user: session.user
-      };
+      console.error('Failed to save resume to database server:', err);
+      const isUnreachable = err.message?.includes('BACKEND_UNREACHABLE') || err.message?.includes('Failed to fetch');
+      throw new Error(
+        isUnreachable
+          ? 'Cannot reach the backend server to update Neon database. Please ensure your backend server is running (e.g. node server/index.js) and connected to Neon.'
+          : (err.message || 'Failed to upload and save resume in database.')
+      );
     }
   },
 
