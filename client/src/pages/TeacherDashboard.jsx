@@ -14,6 +14,8 @@ import {
   Download,
   Edit2,
   CheckCircle2,
+  CheckCircle,
+  XCircle,
   Sparkles,
   ExternalLink,
   Calendar,
@@ -76,6 +78,30 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
     fetchProfile();
     fetchAppliedJobs();
   }, []);
+
+  useEffect(() => {
+    const handleStatusChanged = (e) => {
+      const { appId, status } = e?.detail || {};
+      if (appId && status) {
+        setAppliedJobs((prev) =>
+          prev.map((app) =>
+            Number(app.application_id) === Number(appId) || Number(app.id) === Number(appId)
+              ? { ...app, application_status: status, status }
+              : app
+          )
+        );
+      }
+      fetchAppliedJobs();
+    };
+    window.addEventListener('teachment_application_status_changed', handleStatusChanged);
+    return () => window.removeEventListener('teachment_application_status_changed', handleStatusChanged);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'Applied Jobs') {
+      fetchAppliedJobs();
+    }
+  }, [activeTab]);
 
   const fetchProfile = async () => {
     try {
@@ -899,59 +925,114 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
-                {appliedJobs.map((app) => (
-                  <div
-                    key={app.application_id}
-                    className="p-5 bg-white rounded-xl border border-slate-200 hover:border-indigo-300 transition shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                  >
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-3">
-                        <h4 className="text-lg font-bold text-slate-900">{app.title}</h4>
-                        <span
-                          className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
-                            app.application_status === 'Rejected'
-                              ? 'bg-red-50 text-red-700 border-red-200'
-                              : app.application_status === 'Shortlisted'
-                              ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                              : app.application_status === 'Contacted'
-                              ? 'bg-blue-100 text-blue-800 border-blue-200'
-                              : 'bg-slate-100 text-slate-700 border-slate-200'
-                          }`}
-                        >
-                          {app.application_status}
-                        </span>
-                      </div>
-                      <div className="text-sm font-medium text-slate-600">{app.school_name}</div>
-                      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-1">
-                        <span className="flex items-center gap-1 font-medium text-slate-700">
-                          <MapPin className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-                          <span>
-                            {[app.school_city || app.city, app.school_district || app.district, app.school_state || app.state]
-                              .filter(Boolean)
-                              .join(', ') || 'Campus Location'}
-                          </span>
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <IndianRupee className="w-3.5 h-3.5" />
-                          ₹{app.min_salary?.toLocaleString()} - ₹{app.max_salary?.toLocaleString()}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" />
-                          {app.shift_timings}
-                        </span>
-                      </div>
-                    </div>
+                {appliedJobs.map((app) => {
+                  const currentStatus = (app.application_status || app.status || 'Applied').trim();
+                  const statusLower = currentStatus.toLowerCase();
+                  const appId = app.application_id || app.id || app.job_id;
 
-                    {/* AI Score Badge */}
-                    <div className="flex flex-row sm:flex-col items-end justify-between sm:justify-center border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100">
-                      <div className="text-xs text-slate-400">AI Compatibility</div>
-                      <div className="text-xl font-extrabold text-emerald-600 flex items-center gap-1">
-                        <Sparkles className="w-4 h-4" />
-                        <span>{app.ai_match_score}%</span>
+                  return (
+                    <div
+                      key={appId}
+                      className={`p-5 bg-white rounded-xl border transition shadow-xs flex flex-col gap-3 ${
+                        statusLower === 'shortlisted'
+                          ? 'border-emerald-300 ring-2 ring-emerald-50 hover:border-emerald-400'
+                          : statusLower === 'rejected'
+                          ? 'border-rose-200 hover:border-rose-300 bg-rose-50/10'
+                          : 'border-slate-200 hover:border-indigo-300'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div className="space-y-1.5 flex-1">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <h4 className="text-lg font-bold text-slate-900">{app.title}</h4>
+
+                            {statusLower === 'shortlisted' ? (
+                              <span className="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-300 shadow-2xs">
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-600 fill-emerald-500 animate-pulse" />
+                                <span>Shortlisted</span>
+                              </span>
+                            ) : statusLower === 'rejected' ? (
+                              <span className="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+                                <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                                <span>Rejected</span>
+                              </span>
+                            ) : statusLower === 'contacted' ? (
+                              <span className="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-bold bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
+                                <Clock className="w-3.5 h-3.5 text-blue-600" />
+                                <span>Contacted</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full font-bold bg-slate-100 text-slate-700 border border-slate-200 shadow-2xs">
+                                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Applied</span>
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm font-medium text-slate-600">{app.school_name}</div>
+                          <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 pt-1">
+                            <span className="flex items-center gap-1 font-medium text-slate-700">
+                              <MapPin className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                              <span>
+                                {[app.school_city || app.city, app.school_district || app.district, app.school_state || app.state]
+                                  .filter(Boolean)
+                                  .join(', ') || 'Campus Location'}
+                              </span>
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <IndianRupee className="w-3.5 h-3.5" />
+                              ₹{app.min_salary?.toLocaleString()} - ₹{app.max_salary?.toLocaleString()}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5" />
+                              {app.shift_timings || 'Regular Hours'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* AI Score Badge */}
+                        <div className="flex flex-row sm:flex-col items-end justify-between sm:justify-center border-t sm:border-t-0 pt-3 sm:pt-0 border-slate-100">
+                          <div className="text-xs text-slate-400">AI Compatibility</div>
+                          <div className="text-xl font-extrabold text-emerald-600 flex items-center gap-1">
+                            <Sparkles className="w-4 h-4" />
+                            <span>{app.ai_match_score}%</span>
+                          </div>
+                        </div>
                       </div>
+
+                      {/* Contextual Status Banner */}
+                      {statusLower === 'shortlisted' && (
+                        <div className="flex items-center gap-2 text-xs font-semibold text-emerald-800 bg-emerald-50 px-3.5 py-2 rounded-xl border border-emerald-200 mt-1">
+                          <Sparkles className="w-4 h-4 text-emerald-600 shrink-0 fill-emerald-500" />
+                          <span>
+                            🎉 <strong>Shortlisted!</strong> {app.school_name} has shortlisted your profile for this vacancy. School administration will reach out directly via call/email for interview scheduling.
+                          </span>
+                        </div>
+                      )}
+                      {statusLower === 'rejected' && (
+                        <div className="flex items-center gap-2 text-xs font-medium text-rose-700 bg-rose-50 px-3.5 py-2 rounded-xl border border-rose-200 mt-1">
+                          <XCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>
+                            Application Status: <strong>Not Selected</strong> by {app.school_name} for this opening. Don't worry — browse other vacancies to find your best match!
+                          </span>
+                        </div>
+                      )}
+                      {statusLower === 'contacted' && (
+                        <div className="flex items-center gap-2 text-xs font-medium text-blue-800 bg-blue-50 px-3.5 py-2 rounded-xl border border-blue-200 mt-1">
+                          <Clock className="w-4 h-4 text-blue-600 shrink-0" />
+                          <span>
+                            Notice: {app.school_name} has marked your application as contacted.
+                          </span>
+                        </div>
+                      )}
+                      {statusLower !== 'shortlisted' && statusLower !== 'rejected' && statusLower !== 'contacted' && (
+                        <div className="flex items-center gap-2 text-[11px] text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200/60 mt-1">
+                          <CheckCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span>Application sent directly to {app.school_name} principal. Direct recruitment with zero agency fees.</span>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

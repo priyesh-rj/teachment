@@ -116,6 +116,24 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
     }
   }, [initialKeyword]);
 
+  useEffect(() => {
+    const handleStatusChanged = (e) => {
+      const { jobId, status } = e?.detail || {};
+      if (jobId && status) {
+        setJobs((prev) =>
+          prev.map((j) =>
+            Number(j.id) === Number(jobId)
+              ? { ...j, application_status: status }
+              : j
+          )
+        );
+      }
+      fetchJobs();
+    };
+    window.addEventListener('teachment_application_status_changed', handleStatusChanged);
+    return () => window.removeEventListener('teachment_application_status_changed', handleStatusChanged);
+  }, []);
+
   const expKey = JSON.stringify(selectedExperience);
 
   useEffect(() => {
@@ -651,10 +669,39 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
 
                         {isApplied ? (
                           <div className="flex flex-col items-end gap-1">
-                            <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-sm font-bold shadow-xs">
-                              <CheckCircle className="w-4 h-4 text-emerald-600" />
-                              <span>Applied</span>
-                            </span>
+                            {(() => {
+                              const appStatus = (job.application_status || 'Applied').trim().toLowerCase();
+                              if (appStatus === 'shortlisted') {
+                                return (
+                                  <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-300 text-sm font-bold shadow-xs">
+                                    <Sparkles className="w-4 h-4 text-emerald-600 fill-emerald-500 animate-pulse" />
+                                    <span>Shortlisted</span>
+                                  </span>
+                                );
+                              }
+                              if (appStatus === 'rejected') {
+                                return (
+                                  <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-50 text-rose-700 border border-rose-200 text-sm font-bold shadow-xs">
+                                    <XCircle className="w-4 h-4 text-rose-600" />
+                                    <span>Rejected</span>
+                                  </span>
+                                );
+                              }
+                              if (appStatus === 'contacted') {
+                                return (
+                                  <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 text-sm font-bold shadow-xs">
+                                    <Clock className="w-4 h-4 text-blue-600" />
+                                    <span>Contacted</span>
+                                  </span>
+                                );
+                              }
+                              return (
+                                <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 text-slate-700 border border-slate-200 text-sm font-bold shadow-xs">
+                                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                                  <span>Applied</span>
+                                </span>
+                              );
+                            })()}
                             {job.ai_match_score && (
                               <span className="text-[11px] font-semibold text-emerald-600 flex items-center gap-0.5">
                                 <Sparkles className="w-3 h-3" />

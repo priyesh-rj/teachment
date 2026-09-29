@@ -279,7 +279,11 @@ export default function SchoolDashboard({ isPostModalOpen, setIsPostModalOpen })
     try {
       await api.updateApplicantStatus(appId, status);
       setApplicantsList((prev) =>
-        prev.map((a) => (a.application_id === appId ? { ...a, application_status: status } : a))
+        prev.map((a) =>
+          Number(a.application_id) === Number(appId) || Number(a.id) === Number(appId)
+            ? { ...a, application_status: status, status }
+            : a
+        )
       );
     } catch (err) {
       alert('Failed to update applicant status: ' + err.message);
@@ -856,21 +860,25 @@ export default function SchoolDashboard({ isPostModalOpen, setIsPostModalOpen })
                             <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full font-semibold">
                               #{idx + 1} Best Match
                             </span>
-                            {cand.application_status && (
-                              <span
-                                className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
-                                  cand.application_status === 'Rejected'
-                                    ? 'bg-red-50 text-red-700 border-red-200'
-                                    : cand.application_status === 'Shortlisted'
-                                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                                    : cand.application_status === 'Contacted'
-                                    ? 'bg-blue-100 text-blue-800 border-blue-200'
-                                    : 'bg-slate-100 text-slate-700 border-slate-200'
-                                }`}
-                              >
-                                {cand.application_status}
-                              </span>
-                            )}
+                            {(() => {
+                              const appStatus = cand.application_status || cand.status;
+                              if (!appStatus) return null;
+                              return (
+                                <span
+                                  className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
+                                    appStatus === 'Rejected'
+                                      ? 'bg-red-50 text-red-700 border-red-200'
+                                      : appStatus === 'Shortlisted'
+                                      ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                      : appStatus === 'Contacted'
+                                      ? 'bg-blue-100 text-blue-800 border-blue-200'
+                                      : 'bg-slate-100 text-slate-700 border-slate-200'
+                                  }`}
+                                >
+                                  {appStatus}
+                                </span>
+                              );
+                            })()}
                           </div>
                           <div className="text-xs text-slate-500 flex flex-wrap items-center gap-3 pt-1">
                             <span>Specialization: <strong className="text-slate-800">{cand.subject || 'Not specified'}</strong></span>
@@ -980,36 +988,44 @@ export default function SchoolDashboard({ isPostModalOpen, setIsPostModalOpen })
 
                       {/* Direct status buttons */}
                       <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleUpdateApplicantStatus(cand.application_id, 'Shortlisted')}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                            cand.application_status === 'Shortlisted'
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                          }`}
-                        >
-                          Shortlist
-                        </button>
-                        <button
-                          onClick={() => handleUpdateApplicantStatus(cand.application_id, 'Contacted')}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                            cand.application_status === 'Contacted'
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                          }`}
-                        >
-                          Mark Contacted
-                        </button>
-                        <button
-                          onClick={() => handleUpdateApplicantStatus(cand.application_id, 'Rejected')}
-                          className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                            cand.application_status === 'Rejected'
-                              ? 'bg-red-600 text-white shadow-xs'
-                              : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
-                          }`}
-                        >
-                          {cand.application_status === 'Rejected' ? 'Rejected' : 'Reject'}
-                        </button>
+                        {(() => {
+                          const appStatus = cand.application_status || cand.status || 'Applied';
+                          const resolvedId = cand.application_id || cand.id;
+                          return (
+                            <>
+                              <button
+                                onClick={() => handleUpdateApplicantStatus(resolvedId, 'Shortlisted')}
+                                className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                  appStatus === 'Shortlisted'
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                                }`}
+                              >
+                                {appStatus === 'Shortlisted' ? '✓ Shortlisted' : 'Shortlist'}
+                              </button>
+                              <button
+                                onClick={() => handleUpdateApplicantStatus(resolvedId, 'Contacted')}
+                                className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                  appStatus === 'Contacted'
+                                    ? 'bg-blue-600 text-white shadow-xs'
+                                    : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+                                }`}
+                              >
+                                {appStatus === 'Contacted' ? '✓ Contacted' : 'Mark Contacted'}
+                              </button>
+                              <button
+                                onClick={() => handleUpdateApplicantStatus(resolvedId, 'Rejected')}
+                                className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                  appStatus === 'Rejected'
+                                    ? 'bg-red-600 text-white shadow-xs'
+                                    : 'bg-red-50 text-red-700 hover:bg-red-100 border border-red-200'
+                                }`}
+                              >
+                                {appStatus === 'Rejected' ? '✕ Rejected' : 'Reject'}
+                              </button>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>

@@ -478,7 +478,7 @@ router.get('/jobs/:id/applicants', async (req, res) => {
 });
 
 // 8. UPDATE Application Status (Shortlisted, Contacted, Rejected)
-router.patch('/applications/:id/status', async (req, res) => {
+const handleUpdateApplicationStatus = async (req, res) => {
   try {
     const applicationId = req.params.id;
     const { status } = req.body;
@@ -487,13 +487,29 @@ router.patch('/applications/:id/status', async (req, res) => {
       return res.status(400).json({ error: 'Invalid application status.' });
     }
 
-    await db.query(`UPDATE job_applications SET status = $1 WHERE id = $2`, [status, applicationId]);
-    res.json({ message: `Applicant status marked as ${status}.` });
+    const updateRes = await db.query(
+      `UPDATE job_applications SET status = $1 WHERE id = $2 RETURNING *`,
+      [status, applicationId]
+    );
+
+    if (updateRes.rows && updateRes.rows.length === 0) {
+      // For SQLite compatibility if RETURNING is not supported
+      await db.query(`UPDATE job_applications SET status = $1 WHERE id = $2`, [status, applicationId]);
+    }
+
+    res.json({
+      message: `Applicant status successfully marked as ${status}.`,
+      applicationId,
+      status
+    });
   } catch (err) {
     console.error('Update status error:', err);
     res.status(500).json({ error: 'Failed to update application status.' });
   }
-});
+};
+
+router.patch('/applications/:id/status', handleUpdateApplicationStatus);
+router.put('/applications/:id/status', handleUpdateApplicationStatus);
 
 module.exports = router;
 

@@ -548,7 +548,14 @@ router.post('/apply/:jobId', async (req, res) => {
 
     let teacherProf = await db.query(`SELECT * FROM teacher_profiles WHERE user_id = $1`, [req.user.id]);
     if (teacherProf.rows.length === 0) {
-      await db.query(`INSERT INTO teacher_profiles (user_id) VALUES ($1)`, [req.user.id]);
+      const userCheck = await db.query(`SELECT id FROM users WHERE id = $1`, [req.user.id]);
+      if (userCheck.rows.length === 0) {
+        await db.query(
+          `INSERT INTO users (id, name, email, password, role) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO NOTHING`,
+          [req.user.id, req.user.name || 'Candidate', req.user.email || `candidate_${req.user.id}@teachment.com`, 'teachment_pass_hash', 'teacher']
+        );
+      }
+      await db.query(`INSERT INTO teacher_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, [req.user.id]);
       teacherProf = await db.query(`SELECT * FROM teacher_profiles WHERE user_id = $1`, [req.user.id]);
     }
     const teacher = teacherProf.rows[0];
@@ -649,14 +656,28 @@ router.get('/applied', async (req, res) => {
     const appliedRes = await db.query(
       `SELECT 
         ja.id as application_id,
+        ja.id as id,
+        ja.job_id,
         ja.ai_match_score,
         ja.status as application_status,
+        ja.status as status,
         ja.applied_at,
-        j.*,
+        j.title,
+        j.subject,
+        j.post_level,
+        j.experience_required,
+        j.min_salary,
+        j.max_salary,
+        j.shift_timings,
+        j.openings,
+        j.job_type,
+        j.required_skills,
+        j.status as job_status,
         s.school_name,
         s.city as school_city,
         s.district as school_district,
         s.state as school_state,
+        s.address as school_address,
         s.logo_path
        FROM job_applications ja
        JOIN jobs j ON ja.job_id = j.id

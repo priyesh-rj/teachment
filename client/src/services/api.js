@@ -360,7 +360,8 @@ export const api = {
       return res;
     } catch (err) {
       let filtered = [...localJobs].map((j) => {
-        const isApplied = localApplications.some((a) => Number(a.job_id) === Number(j.id));
+        const matchingApp = localApplications.find((a) => Number(a.job_id) === Number(j.id));
+        const isApplied = Boolean(matchingApp);
         return {
           ...j,
           school_name: j.school_name || DEMO_SCHOOL.profile.school_name,
@@ -369,7 +370,9 @@ export const api = {
           school_state: j.school_state || j.state || DEMO_SCHOOL.profile.state,
           school_address: j.school_address || j.address || DEMO_SCHOOL.profile.address,
           status: j.status || 'Open',
-          is_applied: isApplied ? 1 : 0
+          is_applied: isApplied ? 1 : 0,
+          application_status: matchingApp ? (matchingApp.application_status || matchingApp.status || 'Applied') : null,
+          ai_match_score: matchingApp ? matchingApp.ai_match_score : (j.ai_match_score || null)
         };
       });
 
@@ -452,9 +455,35 @@ export const api = {
         localApplicants.unshift(applicantEntry);
         persistApplicants();
       }
+
+      const job = localJobs.find((j) => Number(j.id) === Number(jobId));
+      const newApp = {
+        id: res?.applicationId || Date.now(),
+        application_id: res?.applicationId || Date.now(),
+        job_id: Number(jobId),
+        title: job ? job.title : 'Teaching Position',
+        subject: job ? job.subject : 'Academic',
+        school_name: job ? job.school_name : DEMO_SCHOOL.profile.school_name,
+        status: res?.status || 'Applied',
+        application_status: res?.status || 'Applied',
+        created_at: new Date().toISOString(),
+        ai_match_score: res?.aiMatchScore || applicantEntry.ai_match_score || 95.0,
+        min_salary: job ? job.min_salary : 20000,
+        max_salary: job ? job.max_salary : 35000,
+        job_type: job ? job.job_type : 'Onsite',
+        city: job ? (job.school_city || job.city) : DEMO_SCHOOL.profile.city
+      };
+
+      if (!localApplications.some((a) => Number(a.job_id) === Number(jobId))) {
+        localApplications.unshift(newApp);
+        persistApplications();
+      }
+
       const jIdx = localJobs.findIndex((j) => Number(j.id) === Number(jobId));
       if (jIdx !== -1) {
         localJobs[jIdx].applicant_count = (Number(localJobs[jIdx].applicant_count) || 0) + 1;
+        localJobs[jIdx].is_applied = 1;
+        localJobs[jIdx].application_status = res?.status || 'Applied';
         persistJobs();
       }
 
@@ -464,11 +493,13 @@ export const api = {
       const job = localJobs.find((j) => Number(j.id) === Number(jobId)) || localJobs[0];
       const newApp = {
         id: Date.now(),
+        application_id: Date.now(),
         job_id: Number(jobId),
         title: job ? job.title : 'Teaching Position',
         subject: job ? job.subject : 'Academic',
         school_name: job ? job.school_name : DEMO_SCHOOL.profile.school_name,
         status: 'Applied',
+        application_status: 'Applied',
         created_at: new Date().toISOString(),
         ai_match_score: 95.0,
         min_salary: job ? job.min_salary : 20000,
@@ -490,6 +521,8 @@ export const api = {
       const jIdx = localJobs.findIndex((j) => Number(j.id) === Number(jobId));
       if (jIdx !== -1) {
         localJobs[jIdx].applicant_count = (Number(localJobs[jIdx].applicant_count) || 0) + 1;
+        localJobs[jIdx].is_applied = 1;
+        localJobs[jIdx].application_status = 'Applied';
         persistJobs();
       }
 
@@ -667,17 +700,59 @@ export const api = {
   },
 
   updateApplicantStatus: async (appId, status) => {
+    const syncLocally = () => {
+      // Update localApplicants
+      localApplicants = localApplicants.map((a) => {
+        if (Number(a.id) === Number(appId) || Number(a.application_id) === Number(appId)) {
+          return { ...a, status, application_status: status };
+        }
+        return a;
+      });
+      persistApplicants();
+
+      // Update localApplications
+      localApplications = localApplications.map((a) => {
+        if (Number(a.id) === Number(appId) || Number(a.application_id) === Number(appId)) {
+          return { ...a, status, application_status: status };
+        }
+        return a;
+      });
+      persistApplications();
+
+      // Also update matching localJobs
+      const matchingApp = localApplications.find(
+        (a) => Number(a.id) === Number(appId) || Number(a.application_id) === Number(appId)
+      );
+      if (matchingApp && matchingApp.job_id) {
+        localJobs = localJobs.map((j) => {
+          if (Number(j.id) === Number(matchingApp.job_id)) {
+            return { ...j, application_status: status };
+          }
+          return j;
+        });
+        persistJobs();
+      }
+
+      if (typeof window !== 'undefined') {
+        try {
+          window.dispatchEvent(
+            new CustomEvent('teachment_application_status_changed', {
+              detail: { appId, status, jobId: matchingApp?.job_id }
+            })
+          );
+        } catch (e) {}
+      }
+    };
+
     try {
-      return await request(`/school/applications/${appId}/status`, {
+      const res = await request(`/school/applications/${appId}/status`, {
         method: 'PATCH',
         body: JSON.stringify({ status }),
       });
+      syncLocally();
+      return res;
     } catch (err) {
-      const idx = localApplicants.findIndex((a) => Number(a.id) === Number(appId));
-      if (idx !== -1) {
-        localApplicants[idx].status = status;
-        persistApplicants();
-      }
+      syncLocally();
       return { success: true, status };
     }
   },
