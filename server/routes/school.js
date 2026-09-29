@@ -58,6 +58,8 @@ router.get('/teachers', optionalToken, async (req, res) => {
         tp.pin_code,
         tp.gender,
         tp.resume_path,
+        tp.resume_filename,
+        tp.resume_data,
         tp.parsed_skills,
         tp.profile_completion,
         u.name,
@@ -454,6 +456,8 @@ router.get('/jobs/:id/applicants', async (req, res) => {
         tp.pin_code,
         tp.gender,
         tp.resume_path,
+        tp.resume_filename,
+        tp.resume_data,
         tp.parsed_skills
        FROM job_applications ja
        JOIN teacher_profiles tp ON ja.teacher_id = tp.id

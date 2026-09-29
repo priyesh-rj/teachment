@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS teacher_profiles (
     pin_code VARCHAR(10),
     gender VARCHAR(20),
     resume_path VARCHAR(255),
+    resume_filename VARCHAR(255),
+    resume_data TEXT,
     parsed_skills TEXT,
     profile_completion INT DEFAULT 0
 );

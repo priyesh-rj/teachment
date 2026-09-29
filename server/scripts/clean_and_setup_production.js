@@ -111,7 +111,7 @@ async function resetAndClean() {
       'Babhanauli',
       '274304',
       'Male',
-      '/uploads/resumes/sample_resume.pdf',
+      null,
       'Classroom Management, Mathematics, Physics, Chemistry, Science, Lesson Planning, Student Assessment, CBSE Curriculum'
     ]
   );
@@ -146,7 +146,7 @@ async function resetAndClean() {
         );
         localDb.run(
           `INSERT INTO teacher_profiles (id, user_id, subject, post, qualifications, syllabus, experience_years, medium, state, district, city, pin_code, gender, resume_path, parsed_skills, profile_completion)
-           VALUES (1, 2, 'Science & Maths', 'TGT', 'B.Ed, M.Sc Mathematics, CTET Qualified', 'CBSE', 7, 'English', 'Uttar Pradesh', 'Kushinagar', 'Babhanauli', '274304', 'Male', '/uploads/resumes/sample_resume.pdf', 'Classroom Management, Mathematics, Physics, Chemistry, Science, Lesson Planning, Student Assessment, CBSE Curriculum', 100)`
+           VALUES (1, 2, 'Science & Maths', 'TGT', 'B.Ed, M.Sc Mathematics, CTET Qualified', 'CBSE', 7, 'English', 'Uttar Pradesh', 'Kushinagar', 'Babhanauli', '274304', 'Male', NULL, 'Classroom Management, Mathematics, Physics, Chemistry, Science, Lesson Planning, Student Assessment, CBSE Curriculum', 85)`
         );
 
         localDb.close(() => resolve());

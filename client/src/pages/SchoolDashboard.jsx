@@ -920,23 +920,27 @@ export default function SchoolDashboard({ isPostModalOpen, setIsPostModalOpen })
                         </span>
                       </div>
 
-                      {cand.resume_path && (
+                      {((cand.resume_path && !cand.resume_path.includes('sample_resume')) || cand.resume_data) ? (
                         <a
                           href={
-                            cand.resume_path.startsWith('data:') ||
-                            cand.resume_path.startsWith('blob:') ||
-                            cand.resume_path.startsWith('http')
-                              ? cand.resume_path
-                              : `${UPLOAD_BASE_URL}${cand.resume_path}`
+                            cand.resume_path && !cand.resume_path.includes('sample_resume')
+                              ? (cand.resume_path.startsWith('data:') ||
+                                 cand.resume_path.startsWith('blob:') ||
+                                 cand.resume_path.startsWith('http')
+                                  ? cand.resume_path
+                                  : `${UPLOAD_BASE_URL}${cand.resume_path}`)
+                              : (cand.resume_data || `${UPLOAD_BASE_URL}/api/teacher/resume-file/${cand.teacher_profile_id || cand.profile_id}`)
                           }
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 underline"
                         >
                           <FileText className="w-3.5 h-3.5" />
-                          <span>View Full Resume PDF</span>
+                          <span>View Full Resume PDF {cand.resume_filename ? `(${cand.resume_filename})` : ''}</span>
                           <ExternalLink className="w-3 h-3" />
                         </a>
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">No resume uploaded</span>
                       )}
                     </div>
 

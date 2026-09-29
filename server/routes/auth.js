@@ -271,8 +271,8 @@ router.post('/demo', async (req, res) => {
       }
       profile = profRes.rows[0];
 
-      // If teacher profile is empty but resume exists, auto-sync from resume
-      if (!profile.subject && profile.resume_path) {
+      // If teacher profile is empty but dynamic resume exists, auto-sync from resume
+      if (!profile.subject && profile.resume_path && !profile.resume_path.includes('sample_resume')) {
         try {
           const { parseResumeFile } = require('../services/resumeParser');
           const absPath = path.join(__dirname, '..', profile.resume_path.replace(/^\//, ''));

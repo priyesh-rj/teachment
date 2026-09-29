@@ -42,9 +42,11 @@ export const DEMO_TEACHER = {
     city: 'Babhanauli',
     pin_code: '274304',
     gender: 'Male',
-    resume_path: '/uploads/resumes/sample_resume.pdf',
+    resume_path: null,
+    resume_filename: null,
+    resume_data: null,
     parsed_skills: 'Classroom Management, Mathematics, Physics, Chemistry, Science, Lesson Planning, Student Assessment, CBSE Curriculum',
-    profile_completion: 100,
+    profile_completion: 85,
     expected_salary: 35000
   }
 };
@@ -100,7 +102,9 @@ export const INITIAL_TEACHERS = [
     state: 'Uttar Pradesh',
     rating: 4.9,
     parsed_skills: 'Classroom Management, Mathematics, Physics, Chemistry, Science, Lesson Planning, Student Assessment, CBSE Curriculum',
-    resume_path: '/uploads/resumes/sample_resume.pdf'
+    resume_path: null,
+    resume_filename: null,
+    resume_data: null
   }
 ];
 
@@ -147,10 +151,11 @@ export function getStoredSession() {
       (!session.profile?.city || session.profile?.city === 'Mumbai' || session.profile?.city === 'Lucknow')
     ) {
       const updated = JSON.parse(JSON.stringify(DEMO_TEACHER));
-      if (session.profile?.resume_path && !session.profile.resume_path.includes('sample_resume.pdf')) {
+      if (session.profile?.resume_path && !session.profile.resume_path.includes('sample_resume')) {
         updated.profile.resume_path = session.profile.resume_path;
         if (session.profile.parsed_skills) updated.profile.parsed_skills = session.profile.parsed_skills;
         if (session.profile.resume_filename) updated.profile.resume_filename = session.profile.resume_filename;
+        if (session.profile.resume_data) updated.profile.resume_data = session.profile.resume_data;
       }
       saveStoredSession(updated);
       return updated;

@@ -87,58 +87,10 @@ async function seed() {
   );
   const school2ProfId = school2Prof.rows[0]?.id || school2Prof.lastID;
 
-  // Ensure sample resume file exists
+  // Ensure resumes upload directory exists
   const resumeDir = path.join(__dirname, '..', 'uploads', 'resumes');
   if (!fs.existsSync(resumeDir)) {
     fs.mkdirSync(resumeDir, { recursive: true });
-  }
-  const samplePdfPath = path.join(resumeDir, 'sample_resume.pdf');
-  if (!fs.existsSync(samplePdfPath)) {
-    // Generate a minimal valid PDF file
-    const minimalPdf = `%PDF-1.4
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
-endobj
-4 0 obj
-<< /Length 124 >>
-stream
-BT
-/F1 20 Tf
-50 720 Td
-(TEACHMENT CANDIDATE RESUME) Tj
-/F1 12 Tf
-0 -40 Td
-(Subject: Mathematics / Science | Level: PGT / TGT) Tj
-0 -25 Td
-(Qualifications: B.Ed, M.Sc Mathematics, CTET Qualified) Tj
-0 -25 Td
-(Experience: Classroom Instruction, Lesson Planning, CBSE Syllabus) Tj
-ET
-endstream
-endobj
-5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-endobj
-xref
-0 6
-0000000000 65535 f 
-0000000009 00000 n 
-0000000058 00000 n 
-0000000115 00000 n 
-0000000224 00000 n 
-0000000399 00000 n 
-trailer
-<< /Size 6 /Root 1 0 R >>
-startxref
-468
-%%EOF`;
-    fs.writeFileSync(samplePdfPath, minimalPdf);
   }
 
   // 2. Create Teachers
@@ -175,9 +127,9 @@ startxref
       'Lucknow',
       '274304',
       'Male',
-      '/uploads/resumes/sample_resume.pdf',
+      null,
       'TGT, Science & Maths, Classroom Management, Student Evaluation, Online Teaching Tools, Decision Making, Critical Thinking, Verbal Communication, Remote Learning, Physics, Chemistry, Mathematics, Maths, Science, Project Planning, Individualized Education Plans',
-      92
+      85
     ]
   );
   const teacher1ProfId = teacher1Prof.rows[0]?.id || teacher1Prof.lastID;
@@ -215,9 +167,9 @@ startxref
       'Mumbai',
       '400001',
       'Female',
-      '/uploads/resumes/sample_resume.pdf',
+      null,
       'English Grammar, Creative Writing, Phonetics, Literature Analysis, Active Listening',
-      100
+      90
     ]
   );
   const teacher2ProfId = teacher2Prof.rows[0]?.id || teacher2Prof.lastID;
@@ -255,9 +207,9 @@ startxref
       'Mumbai',
       '400050',
       'Male',
-      '/uploads/resumes/sample_resume.pdf',
+      null,
       'Python, SQL, Robotics, Computer Fundamentals, Web Development',
-      100
+      90
     ]
   );
   const teacher3ProfId = teacher3Prof.rows[0]?.id || teacher3Prof.lastID;

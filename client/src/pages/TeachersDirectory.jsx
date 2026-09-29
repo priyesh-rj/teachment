@@ -492,25 +492,29 @@ export default function TeachersDirectory({ onOpenAuthModal }) {
                   <div>
                     <h5 className="text-sm font-bold text-slate-900">Verified Curriculum Vitae (PDF)</h5>
                     <p className="text-xs text-slate-500">
-                      {selectedTeacher.resume_path ? 'Official candidate resume uploaded and verified.' : 'Resume document pending upload.'}
+                      {((selectedTeacher.resume_path && !selectedTeacher.resume_path.includes('sample_resume')) || selectedTeacher.resume_data)
+                        ? (selectedTeacher.resume_filename ? `File: ${selectedTeacher.resume_filename}` : 'Official candidate resume uploaded and verified.')
+                        : 'Resume document pending upload.'}
                     </p>
                   </div>
                 </div>
 
-                {selectedTeacher.resume_path ? (
+                {((selectedTeacher.resume_path && !selectedTeacher.resume_path.includes('sample_resume')) || selectedTeacher.resume_data) ? (
                   <a
                     href={
-                      selectedTeacher.resume_path.startsWith('data:') ||
-                      selectedTeacher.resume_path.startsWith('blob:') ||
-                      selectedTeacher.resume_path.startsWith('http')
-                        ? selectedTeacher.resume_path
-                        : `${UPLOAD_BASE_URL}${selectedTeacher.resume_path}`
+                      selectedTeacher.resume_path && !selectedTeacher.resume_path.includes('sample_resume')
+                        ? (selectedTeacher.resume_path.startsWith('data:') ||
+                           selectedTeacher.resume_path.startsWith('blob:') ||
+                           selectedTeacher.resume_path.startsWith('http')
+                            ? selectedTeacher.resume_path
+                            : `${UPLOAD_BASE_URL}${selectedTeacher.resume_path}`)
+                        : (selectedTeacher.resume_data || `${UPLOAD_BASE_URL}/api/teacher/resume-file/${selectedTeacher.profile_id || selectedTeacher.id}`)
                     }
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-xs"
                   >
-                    <span>View Resume PDF</span>
+                    <span>View Resume PDF {selectedTeacher.resume_filename ? `(${selectedTeacher.resume_filename})` : ''}</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 ) : (

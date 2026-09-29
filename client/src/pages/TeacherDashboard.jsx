@@ -290,19 +290,48 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
   const u = profileData?.user || user || {};
   const completion = p.profile_completion || 100;
   
-  const getResumeUrl = (path) => {
-    if (!path) return null;
-    if (
-      path.startsWith('data:') ||
-      path.startsWith('blob:') ||
-      path.startsWith('http://') ||
-      path.startsWith('https://')
-    ) {
-      return path;
+  const getResumeUrl = (profile) => {
+    if (!profile) return null;
+    const path = profile.resume_path;
+    const data = profile.resume_data;
+
+    // Reject any legacy sample resume reference
+    if (path && path.includes('sample_resume')) return null;
+
+    if (path) {
+      if (
+        path.startsWith('data:') ||
+        path.startsWith('blob:') ||
+        path.startsWith('http://') ||
+        path.startsWith('https://')
+      ) {
+        return path;
+      }
+      return `${UPLOAD_BASE_URL}${path}`;
     }
-    return `${UPLOAD_BASE_URL}${path}`;
+
+    if (data && typeof data === 'string') {
+      if (data.startsWith('blob:') || data.startsWith('http')) return data;
+      if (data.startsWith('data:application/pdf;base64,')) {
+        try {
+          const byteCharacters = atob(data.split(',')[1]);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: 'application/pdf' });
+          return URL.createObjectURL(blob);
+        } catch {
+          return data;
+        }
+      }
+      return data;
+    }
+
+    return null;
   };
-  const resumeUrl = getResumeUrl(p.resume_path);
+  const resumeUrl = getResumeUrl(p);
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
@@ -597,7 +626,9 @@ export default function TeacherDashboard({ onNavigateToJobs }) {
                   )}
                 </div>
                 <p className="text-xs text-slate-500">
-                  {p.resume_filename ? `Current File: ${p.resume_filename}` : 'PDF uploaded directly into AI Microservice for dynamic match indexation.'}
+                  {resumeUrl
+                    ? (p.resume_filename ? `Current File: ${p.resume_filename}` : 'Active candidate resume document stored in database.')
+                    : 'Upload your original resume in PDF format. It will be stored dynamically in the database and shown on your profile.'}
                 </p>
               </div>
               <div className="flex items-center gap-3">

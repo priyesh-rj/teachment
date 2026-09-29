@@ -235,10 +235,14 @@ export const api = {
       const session = getStoredSession() || JSON.parse(JSON.stringify(DEMO_TEACHER));
       if (res.user) session.user = { ...session.user, ...res.user };
       if (res.profile) {
+        // Clear any old sample resume preview if present
+        if (res.profile.resume_path && res.profile.resume_path.includes('sample_resume')) {
+          res.profile.resume_path = null;
+        }
         // If a local preview is available in sessionStorage, keep it active for instant viewing
         const cachedPreview = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('teachment_local_resume_preview') : null;
-        if (cachedPreview && (!res.profile.resume_path || res.profile.resume_path.includes('sample_resume'))) {
-          res.profile.resume_path = cachedPreview;
+        if (cachedPreview && !res.profile.resume_path && !res.profile.resume_data) {
+          res.profile.resume_data = cachedPreview;
         }
         session.profile = { ...session.profile, ...res.profile };
       }
@@ -247,8 +251,8 @@ export const api = {
     } catch (err) {
       const session = getStoredSession() || DEMO_TEACHER;
       const cachedPreview = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('teachment_local_resume_preview') : null;
-      if (cachedPreview && session?.profile) {
-        session.profile.resume_path = cachedPreview;
+      if (cachedPreview && session?.profile && !session.profile.resume_path) {
+        session.profile.resume_data = cachedPreview;
       }
       return { user: session.user, profile: session.profile };
     }
@@ -309,6 +313,9 @@ export const api = {
       const session = getStoredSession() || JSON.parse(JSON.stringify(DEMO_TEACHER));
       if (res.profile) {
         session.profile = { ...session.profile, ...res.profile };
+        if (localDataUrl && !session.profile.resume_data) {
+          session.profile.resume_data = localDataUrl;
+        }
       }
       if (res.user) {
         session.user = { ...session.user, ...res.user };
@@ -322,13 +329,14 @@ export const api = {
 
       return res;
     } catch (err) {
-      console.warn('Backend unavailable during uploadResume, persisting local demo resume:', err.message);
+      console.warn('Backend unavailable during uploadResume, persisting local uploaded resume:', err.message);
       const session = getStoredSession() || JSON.parse(JSON.stringify(DEMO_TEACHER));
       const clientExt = extractResumeDetailsClient(file);
 
-      const resumePath = localDataUrl || session.profile?.resume_path || '/uploads/resumes/sample_resume.pdf';
+      const resumePath = localDataUrl || session.profile?.resume_path || null;
       session.profile.resume_path = resumePath;
-      session.profile.resume_filename = file?.name || 'Teacher_Resume.pdf';
+      session.profile.resume_data = localDataUrl || session.profile?.resume_data || null;
+      session.profile.resume_filename = file?.name || 'Candidate_Resume.pdf';
       session.profile.parsed_skills = clientExt.skills.join(', ');
       if (clientExt.subject) session.profile.subject = clientExt.subject;
       if (clientExt.post) session.profile.post = clientExt.post;
@@ -344,8 +352,10 @@ export const api = {
       saveStoredSession(session);
 
       return {
-        message: 'Resume uploaded & AI indexed successfully (Demo Mode)!',
+        message: 'Resume uploaded & stored successfully!',
         resumePath,
+        resumeFilename: session.profile.resume_filename,
+        resumeData: session.profile.resume_data,
         parsedSkills: session.profile.parsed_skills,
         parsedData: clientExt,
         profile: session.profile,
@@ -441,6 +451,8 @@ export const api = {
       pin_code: tProf.pin_code,
       gender: tProf.gender,
       resume_path: tProf.resume_path,
+      resume_filename: tProf.resume_filename,
+      resume_data: tProf.resume_data,
       parsed_skills: tProf.parsed_skills,
       profile_completion: tProf.profile_completion || 100
     };

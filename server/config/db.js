@@ -1,6 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-require('dotenv').config();
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 let dbType = 'sqlite';
 let pgPool = null;
@@ -81,7 +81,12 @@ const runMigrations = async () => {
     await pgPool.query(pgSql);
     // Ensure required_skills column exists on jobs table
     await pgPool.query('ALTER TABLE jobs ADD COLUMN IF NOT EXISTS required_skills TEXT;');
-    console.log('✅ PostgreSQL / Neon tables verified/created.');
+    // Ensure resume columns exist on teacher_profiles table
+    await pgPool.query('ALTER TABLE teacher_profiles ADD COLUMN IF NOT EXISTS resume_filename VARCHAR(255);');
+    await pgPool.query('ALTER TABLE teacher_profiles ADD COLUMN IF NOT EXISTS resume_data TEXT;');
+    // Clean up any legacy dummy sample resume references
+    await pgPool.query("UPDATE teacher_profiles SET resume_path = NULL, resume_filename = NULL, resume_data = NULL WHERE resume_path LIKE '%sample_resume%';");
+    console.log('✅ PostgreSQL / Neon tables verified/created with dynamic resume support.');
   } else {
     // Run SQLite statements
     const statements = schemaSql
@@ -105,7 +110,26 @@ const runMigrations = async () => {
       });
     });
 
-    console.log('✅ SQLite tables verified/created with required_skills support.');
+    // Safely ensure dynamic resume columns exist on teacher_profiles table
+    await new Promise((resolve) => {
+      sqliteDb.run("ALTER TABLE teacher_profiles ADD COLUMN resume_filename VARCHAR(255)", () => {
+        resolve(); // Ignore if column already exists
+      });
+    });
+    await new Promise((resolve) => {
+      sqliteDb.run("ALTER TABLE teacher_profiles ADD COLUMN resume_data TEXT", () => {
+        resolve(); // Ignore if column already exists
+      });
+    });
+
+    // Clean up any legacy dummy sample resume references
+    await new Promise((resolve) => {
+      sqliteDb.run("UPDATE teacher_profiles SET resume_path = NULL, resume_filename = NULL, resume_data = NULL WHERE resume_path LIKE '%sample_resume%'", () => {
+        resolve();
+      });
+    });
+
+    console.log('✅ SQLite tables verified/created with dynamic resume support.');
   }
 };
 

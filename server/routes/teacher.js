@@ -72,7 +72,7 @@ const computeProfileCompletion = (profile) => {
   const fields = [
     'subject', 'post', 'qualifications', 'syllabus',
     'experience_years', 'medium', 'state', 'district',
-    'city', 'pin_code', 'gender', 'resume_path'
+    'city', 'pin_code', 'gender'
   ];
   let filled = 0;
   for (const field of fields) {
@@ -80,7 +80,10 @@ const computeProfileCompletion = (profile) => {
       filled++;
     }
   }
-  return Math.min(100, Math.round((filled / fields.length) * 100));
+  if (profile.resume_path || profile.resume_data) {
+    filled++;
+  }
+  return Math.min(100, Math.round((filled / (fields.length + 1)) * 100));
 };
 
 // 1. PUBLIC / OPTIONALLY AUTHENTICATED: BROWSE JOBS
@@ -203,6 +206,58 @@ router.get('/jobs', optionalToken, async (req, res) => {
   } catch (err) {
     console.error('Browse jobs error:', err);
     res.status(500).json({ error: 'Failed to retrieve jobs.' });
+  }
+});
+
+// Dynamic Resume File Stream: Streams the exact uploaded PDF from DB (resume_data) or disk
+router.get('/resume-file/:profileId?', optionalToken, async (req, res) => {
+  try {
+    let profileId = req.params.profileId;
+    let profRes;
+
+    if (profileId && profileId !== 'me') {
+      profRes = await db.query(
+        `SELECT id, resume_path, resume_filename, resume_data FROM teacher_profiles WHERE id = $1 OR user_id = $1`,
+        [profileId]
+      );
+    } else if (req.user) {
+      profRes = await db.query(
+        `SELECT id, resume_path, resume_filename, resume_data FROM teacher_profiles WHERE user_id = $1`,
+        [req.user.id]
+      );
+    }
+
+    if (!profRes || profRes.rows.length === 0) {
+      return res.status(404).send('Candidate profile not found.');
+    }
+
+    const prof = profRes.rows[0];
+    const filename = prof.resume_filename || 'Candidate_Resume.pdf';
+
+    // 1. Check if resume_data exists in database
+    if (prof.resume_data) {
+      const base64Data = prof.resume_data.replace(/^data:application\/pdf;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
+      res.setHeader('Content-Length', buffer.length);
+      return res.send(buffer);
+    }
+
+    // 2. Fallback to physical disk file if exists
+    if (prof.resume_path) {
+      const absPath = path.join(__dirname, '..', prof.resume_path.replace(/^\//, ''));
+      if (fs.existsSync(absPath)) {
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
+        return fs.createReadStream(absPath).pipe(res);
+      }
+    }
+
+    return res.status(404).send('Candidate has not uploaded a resume yet.');
+  } catch (err) {
+    console.error('Resume stream error:', err);
+    res.status(500).send('Error streaming resume file: ' + err.message);
   }
 });
 
@@ -367,9 +422,14 @@ router.post('/resume', upload.single('resume'), async (req, res) => {
 
     const relativePath = `/uploads/resumes/${req.file.filename}`;
     const absolutePath = req.file.path;
+    const originalFilename = req.file.originalname || path.basename(req.file.path);
+
+    // Read full PDF binary buffer and create dynamic base64 data for resilient database storage
+    const pdfBuffer = fs.readFileSync(absolutePath);
+    const resumeBase64 = `data:application/pdf;base64,${pdfBuffer.toString('base64')}`;
 
     // 1. Direct High-Accuracy PDF Extraction via local parser
-    let extracted = await parseResumeFile(absolutePath, req.file.originalname);
+    let extracted = await parseResumeFile(absolutePath, originalFilename);
     let parsedSkills = extracted.skills && extracted.skills.length > 0
       ? extracted.skills.join(', ')
       : 'Classroom Management, Lesson Planning, Student Engagement, Pedagogy';
@@ -417,20 +477,22 @@ router.post('/resume', upload.single('resume'), async (req, res) => {
     const newCity = extracted.city || currentProf.city || null;
     const newState = extracted.state || currentProf.state || null;
 
-    // Update teacher_profiles with the new resume path, parsed skills, and extracted fields
+    // Update teacher_profiles with the new resume path, original filename, dynamic database resume data, parsed skills, and extracted fields
     await db.query(
       `UPDATE teacher_profiles SET
         resume_path = $1,
-        parsed_skills = $2,
-        subject = COALESCE($3, subject),
-        post = COALESCE($4, post),
-        qualifications = COALESCE($5, qualifications),
-        experience_years = CASE WHEN $6 > 0 THEN $6 ELSE experience_years END,
-        syllabus = COALESCE($7, syllabus),
-        city = COALESCE($8, city),
-        state = COALESCE($9, state)
-       WHERE user_id = $10`,
-      [relativePath, parsedSkills, newSubject, newPost, newQuals, newExp, newSyllabus, newCity, newState, req.user.id]
+        resume_filename = $2,
+        resume_data = $3,
+        parsed_skills = $4,
+        subject = COALESCE($5, subject),
+        post = COALESCE($6, post),
+        qualifications = COALESCE($7, qualifications),
+        experience_years = CASE WHEN $8 > 0 THEN $8 ELSE experience_years END,
+        syllabus = COALESCE($9, syllabus),
+        city = COALESCE($10, city),
+        state = COALESCE($11, state)
+       WHERE user_id = $12`,
+      [relativePath, originalFilename, resumeBase64, parsedSkills, newSubject, newPost, newQuals, newExp, newSyllabus, newCity, newState, req.user.id]
     );
 
     // Update user name/phone if candidate details detected in resume and current user is placeholder
@@ -457,8 +519,10 @@ router.post('/resume', upload.single('resume'), async (req, res) => {
     const finalUser = await db.query(`SELECT id, name, email, phone, role, avatar FROM users WHERE id = $1`, [req.user.id]);
 
     res.json({
-      message: 'Resume uploaded and parsed successfully',
+      message: 'Resume uploaded and stored successfully',
       resumePath: relativePath,
+      resumeFilename: originalFilename,
+      resumeData: resumeBase64,
       parsedSkills,
       parsedData: extracted,
       profile: finalProf.rows[0],
