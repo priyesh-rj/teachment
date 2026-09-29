@@ -53,10 +53,15 @@ app.get('/uploads/resumes/:filename', async (req, res, next) => {
 // Serve static uploads (resumes, logos)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// API Routes
+// API Routes (Mounted under both /api and direct to ensure Vercel and local parity)
 app.use('/api/auth', authRoutes);
+app.use('/auth', authRoutes);
+
 app.use('/api/teacher', teacherRoutes);
+app.use('/teacher', teacherRoutes);
+
 app.use('/api/school', schoolRoutes);
+app.use('/school', schoolRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

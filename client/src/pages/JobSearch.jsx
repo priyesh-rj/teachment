@@ -116,9 +116,11 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
     }
   }, [initialKeyword]);
 
+  const expKey = JSON.stringify(selectedExperience);
+
   useEffect(() => {
     fetchJobs();
-  }, [statusFilter, isOnline, datePosted, selectedExperience, salaryRange.min, salaryRange.max, searchKeyword]);
+  }, [statusFilter, isOnline, datePosted, expKey, salaryRange.min, salaryRange.max, searchKeyword]);
 
   const fetchJobs = async () => {
     setLoading(true);
@@ -136,7 +138,7 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
         minSalary: salaryRange.min > 10000 ? salaryRange.min : '',
         maxSalary: salaryRange.max < 120000 ? salaryRange.max : '',
       });
-      setJobs(res.jobs || []);
+      setJobs(res?.jobs || []);
     } catch (err) {
       console.error('Error fetching jobs:', err);
     } finally {
@@ -152,7 +154,7 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
     ].filter(Boolean);
     if (parts.length > 0) return parts.join(', ');
     if (j.school_address || j.address) return j.school_address || j.address;
-    return 'Location as per School Campus';
+    return 'Babhanauli, Kushinagar, Uttar Pradesh';
   };
 
   const filteredJobs = jobs.filter((job) => {
@@ -199,6 +201,33 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
     }
     if (salaryRange.max < 120000 && jobMin > salaryRange.max) {
       return false;
+    }
+
+    // 4. Date Posted filter
+    if (datePosted !== 'All' && job.created_at) {
+      const jobDate = new Date(job.created_at).getTime();
+      const now = Date.now();
+      const diffHours = (now - jobDate) / (1000 * 60 * 60);
+      if (datePosted === 'Last Hour' && diffHours > 1) return false;
+      if ((datePosted === 'Last 24 Hour' || datePosted === 'Last 24 Hours') && diffHours > 24) return false;
+      if (datePosted === 'Last 7 Days' && diffHours > 24 * 7) return false;
+      if (datePosted === 'Last 14 Days' && diffHours > 24 * 14) return false;
+      if (datePosted === 'Last 30 Days' && diffHours > 24 * 30) return false;
+    }
+
+    // 5. Client-side keyword search filter
+    if (searchKeyword && searchKeyword.trim()) {
+      const kw = searchKeyword.trim().toLowerCase();
+      const match =
+        (job.title || '').toLowerCase().includes(kw) ||
+        (job.subject || '').toLowerCase().includes(kw) ||
+        (job.school_name || '').toLowerCase().includes(kw) ||
+        (job.school_city || job.city || '').toLowerCase().includes(kw) ||
+        (job.school_district || job.district || '').toLowerCase().includes(kw) ||
+        (job.school_state || job.state || '').toLowerCase().includes(kw) ||
+        (job.post_level || '').toLowerCase().includes(kw) ||
+        (job.required_skills || '').toLowerCase().includes(kw);
+      if (!match) return false;
     }
 
     return true;
@@ -454,16 +483,38 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
           {/* Right Column: Job Cards */}
           <div className="lg:col-span-3 space-y-4">
             <div className="flex justify-between items-center px-1 text-sm text-slate-500">
-              <span>Showing <strong>{filteredJobs.length}</strong> vacancies</span>
+              <span>
+                {loading && jobs.length === 0 ? (
+                  <span className="inline-flex items-center gap-2 text-indigo-600 font-medium">
+                    <span className="w-2 h-2 rounded-full bg-indigo-600 animate-ping" />
+                    Finding teaching vacancies...
+                  </span>
+                ) : (
+                  <>Showing <strong>{filteredJobs.length}</strong> {filteredJobs.length === 1 ? 'vacancy' : 'vacancies'}</>
+                )}
+              </span>
               <span className="text-xs text-indigo-600 font-semibold bg-indigo-50 px-2.5 py-1 rounded-full">
                 ⚡ Direct Recruitment — Zero Agency Fees
               </span>
             </div>
 
-            {loading ? (
-              <div className="py-20 text-center">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                <p className="mt-2 text-sm text-slate-500">Loading teaching vacancies...</p>
+            {loading && jobs.length === 0 ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map((n) => (
+                  <div
+                    key={n}
+                    className="bg-white rounded-2xl p-6 border border-slate-200 animate-pulse space-y-4"
+                  >
+                    <div className="flex flex-col sm:flex-row justify-between gap-4">
+                      <div className="space-y-2.5 flex-1">
+                        <div className="h-6 bg-slate-200 rounded-md w-2/3"></div>
+                        <div className="h-4 bg-slate-100 rounded-md w-1/3"></div>
+                        <div className="h-4 bg-slate-100 rounded-md w-1/2 pt-2"></div>
+                      </div>
+                      <div className="w-28 h-10 bg-slate-200 rounded-xl"></div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : filteredJobs.length === 0 ? (
               <div className="bg-white p-12 text-center rounded-2xl border border-slate-200 space-y-3">
@@ -473,7 +524,7 @@ export default function JobSearch({ onOpenAuthModal, initialKeyword = '' }) {
                 {hasActiveFilters && (
                   <button
                     onClick={handleResetFilters}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-xs font-bold transition"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-xs font-bold transition cursor-pointer"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                     <span>Clear Active Filters</span>

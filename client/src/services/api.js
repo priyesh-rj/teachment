@@ -22,7 +22,8 @@ export const UPLOAD_BASE_URL = import.meta.env.VITE_API_URL
 let localJobs = (() => {
   try {
     const raw = localStorage.getItem('teachment_mock_jobs');
-    return raw ? JSON.parse(raw) : INITIAL_JOBS;
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_JOBS;
   } catch {
     return INITIAL_JOBS;
   }
@@ -69,7 +70,7 @@ const getAuthHeaders = () => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
-// Generic Fetch Wrapper with resilient error detection
+// Generic Fetch Wrapper with resilient error detection & 10s safety timeout
 async function request(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
   const headers = {
@@ -81,11 +82,16 @@ async function request(endpoint, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+
   let res;
   try {
-    res = await fetch(url, { ...options, headers });
+    res = await fetch(url, { ...options, headers, signal: options.signal || controller.signal });
   } catch (netErr) {
     throw new Error('BACKEND_UNREACHABLE: ' + netErr.message);
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   const contentType = res.headers.get('content-type') || '';
@@ -346,8 +352,12 @@ export const api = {
           clean[k] = v;
         }
       });
-      const query = new URLSearchParams(clean).toString();
-      return await request(`/teacher/jobs${query ? `?${query}` : ''}`);
+      const res = await request(`/teacher/jobs${query ? `?${query}` : ''}`);
+      if (res && Array.isArray(res.jobs) && res.jobs.length > 0) {
+        localJobs = res.jobs;
+        persistJobs();
+      }
+      return res;
     } catch (err) {
       let filtered = [...localJobs].map((j) => {
         const isApplied = localApplications.some((a) => Number(a.job_id) === Number(j.id));
